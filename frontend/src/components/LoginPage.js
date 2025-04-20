@@ -1,84 +1,101 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import googleLogo from '../assets/google-cloud.png';
+import azureLogo from '../assets/azure.jpeg';
+import awsLogo from '../assets/aws.png';
 
 const LoginPage = ({ setProvider }) => {
   const navigate = useNavigate();
 
   const handleLogin = (provider) => {
-    setProvider(provider);  // Save provider name (AWS, GCP, Azure)
-    localStorage.setItem('provider', provider);  // Optional persistence
-    navigate('/dashboard');  // Redirect to Dashboard
+    setProvider(provider);
+    localStorage.setItem('provider', provider);
+    navigate('/dashboard');
   };
 
   return (
-    <div style={styles.loginContainer}>
-      <h2 style={styles.title}>Welcome to Cloud9 ☁️</h2>
-      <p style={styles.subtitle}>Choose your Cloud Provider to continue</p>
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h2 style={styles.title}>Welcome to Cloud9 ☁️</h2>
+        <p style={styles.subtitle}>Manage your AWS, Azure, and GCP resources smartly.</p>
 
-      <div style={styles.buttonContainer}>
-        <button style={styles.googleBtn} onClick={() => handleLogin('gcp')}>Login with Google Cloud</button>
-        <button style={styles.azureBtn} onClick={() => handleLogin('azure')}>Login with Microsoft Azure</button>
-        <button style={styles.awsBtn} onClick={() => handleLogin('aws')}>Login with AWS</button>
+        <div style={styles.buttonGroup}>
+          <button style={styles.loginButton} onClick={() => handleLogin('gcp')}>
+            <img src={googleLogo} alt="Google Cloud" style={styles.logo} />
+            Sign in with Google Cloud
+          </button>
+
+          <button style={{ ...styles.loginButton, backgroundColor: '#0078D4' }} onClick={() => handleLogin('azure')}>
+            <img src={azureLogo} alt="Microsoft Azure" style={styles.logo} />
+            Sign in with Microsoft Azure
+          </button>
+
+          <button style={{ ...styles.loginButton, backgroundColor: '#FF9900' }} onClick={() => handleLogin('aws')}>
+            <img src={awsLogo} alt="AWS" style={styles.logo} />
+            Sign in with AWS
+          </button>
+        </div>
+
+        <p style={styles.footer}>Cloud9 works seamlessly across all major cloud platforms.</p>
       </div>
     </div>
   );
 };
 
 const styles = {
-  loginContainer: {
-    height: '100vh',
+  container: {
+    minHeight: '100vh',
     display: 'flex',
-    flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'linear-gradient(to bottom right, #d8eafd, #f0f4ff)',
+    background: 'linear-gradient(to bottom right, #e6f0ff, #f5f9ff)',
     fontFamily: 'Arial, sans-serif',
   },
+  card: {
+    backgroundColor: 'white',
+    padding: '40px',
+    borderRadius: '12px',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+    textAlign: 'center',
+    maxWidth: '400px',
+  },
   title: {
-    fontSize: '2.5rem',
+    fontSize: '2rem',
     fontWeight: 'bold',
     marginBottom: '10px',
-    color: '#333',
   },
   subtitle: {
-    fontSize: '1.2rem',
-    marginBottom: '30px',
+    fontSize: '1rem',
     color: '#666',
+    marginBottom: '30px',
   },
-  buttonContainer: {
+  buttonGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '15px',
+    marginBottom: '20px',
   },
-  googleBtn: {
+  loginButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
     backgroundColor: '#4285F4',
     color: 'white',
     border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
-    cursor: 'pointer',
+    padding: '12px 20px',
+    borderRadius: '8px',
     fontSize: '16px',
-    width: '250px',
+    cursor: 'pointer',
+    justifyContent: 'center',
   },
-  azureBtn: {
-    backgroundColor: '#0078D4',
-    color: 'white',
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    width: '250px',
+  logo: {
+    width: '24px',
+    height: '24px',
   },
-  awsBtn: {
-    backgroundColor: '#FF9900',
-    color: 'white',
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    width: '250px',
+  footer: {
+    fontSize: '0.9rem',
+    color: '#888',
+    marginTop: '20px',
   },
 };
 
