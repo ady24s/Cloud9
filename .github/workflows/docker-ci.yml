@@ -26,4 +26,4 @@ jobs:
 
     - name: Confirm Backend Build
       run: |
-        echo "Backend FastAPI + Dockerfile Build Succeeded!"
+        echo "FastAPI Backend Build Succeeded!"
