@@ -1,0 +1,22 @@
+.website-container {
+    background-color: #f8f9fa;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  
+  .extension-container {
+    background-color: white;
+    padding: 10px;
+    width: 300px;
+    height: auto;
+    overflow-y: auto;
+  }
+  
+  .website-dashboard .card {
+    margin-bottom: 15px;
+  }
+  
+  .extension-dashboard .card {
+    margin-bottom: 10px;
+  }
+  

@@ -1,0 +1,64 @@
+import React, { useEffect, useState } from "react";
+import { Table, Spinner, Alert } from "react-bootstrap";
+import axios from "axios";
+
+const ActiveInstances = () => {
+  const [instances, setInstances] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const getInstances = async () => {
+      try {
+        const response = await axios.get("http://127.0.0.1:8000/aws/instances");
+        console.log("Fetched Instances: ", response.data); // Debugging Line
+
+        if (response.data && response.data.instances) {
+          setInstances(response.data.instances);
+        } else {
+          setError("Invalid data structure received from API");
+        }
+      } catch (err) {
+        console.error("Error fetching instances:", err);
+        setError("Failed to fetch EC2 instances");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getInstances();
+  }, []);
+
+  return (
+    <div>
+      <h5>✅ Active EC2 Instances</h5>
+      {loading && <Spinner animation="border" />}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {!loading && !error && instances.length === 0 && <p>No instances found.</p>}
+      {!loading && !error && instances.length > 0 && (
+        <Table striped bordered hover responsive>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>State</th>
+              <th>Launch Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {instances.map((instance) => (
+              <tr key={instance.id}>
+                <td>{instance.id}</td>
+                <td>{instance.type}</td>
+                <td>{instance.state}</td>
+                <td>{instance.launch_time}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </div>
+  );
+};
+
+export default ActiveInstances;

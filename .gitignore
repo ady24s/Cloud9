@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+
+# Environment variables
+.env
+
+# SQLite database
+*.db
+
+# Docker
+*.tar
+*.container
+*.log
+
+# VS Code / IDE
+.vscode/
+.idea/
+*.swp
+
+# Node modules (if accidentally pulled)
+node_modules/
+
+# Frontend (not containerized right now)
+frontend/build/
