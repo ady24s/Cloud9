@@ -167,3 +167,41 @@ def send_email_alert(message):
             server.sendmail(msg["From"], msg["To"], msg.as_string())
     except Exception as e:
         print(f"Failed to send email: {e}")
+
+
+@app.get("/spend-history")
+def get_spend_history():
+    # Dummy 6-month spend history data
+    return {
+        "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+        "spend": [2000, 2200, 2500, 2300, 2400, 3100]  # last value is a spike
+    }
+
+
+@app.get("/gcp/instances")
+def get_gcp_instances():
+    return [
+        {"id": "gcp-vm-001", "type": "n1-standard-1", "state": "RUNNING"},
+        {"id": "gcp-vm-002", "type": "e2-medium", "state": "TERMINATED"},
+        {"id": "gcp-vm-003", "type": "n2-standard-2", "state": "RUNNING"},
+    ]
+@app.get("/gcp/storage")
+def get_gcp_storage_buckets():
+    return [
+        {"name": "gcp-bucket-001", "creation_date": "2024-11-01"},
+        {"name": "gcp-bucket-002", "creation_date": "2025-01-12"},
+    ]
+
+
+@app.get("/azure/instances")
+def get_azure_instances():
+    return [
+        {"id": "azure-vm-1", "type": "Standard_B1s", "state": "Running"},
+        {"id": "azure-vm-2", "type": "Standard_D2s_v3", "state": "Stopped"}
+    ]
+@app.get("/azure/storage")
+def get_azure_storage_buckets():
+    return [
+        {"name": "azure-container-001", "creation_date": "2024-10-15"},
+        {"name": "azure-container-002", "creation_date": "2025-02-20"},
+    ]
