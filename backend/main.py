@@ -205,3 +205,11 @@ def get_azure_storage_buckets():
         {"name": "azure-container-001", "creation_date": "2024-10-15"},
         {"name": "azure-container-002", "creation_date": "2025-02-20"},
     ]
+@app.get("/security")
+def get_security_status():
+    return {
+        "issues_found": 1,
+        "public_buckets": 1,
+        "open_ports": [22, 8080],
+        "recommendation": "Close unused ports and restrict public bucket access."
+    }

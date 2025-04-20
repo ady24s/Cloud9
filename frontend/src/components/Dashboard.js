@@ -8,7 +8,11 @@ import { Card, Row, Col } from 'react-bootstrap';
 import axios from 'axios';
 import awsLogo from '../assets/aws.png';
 import googleLogo from '../assets/google-cloud.png';
-import azureLogo from '../assets/azure.jpeg'; // or azure.png
+import azureLogo from '../assets/azure.jpeg'; 
+import SecurityOverview from './SecurityOverview';
+import { FaExclamationTriangle, FaLock } from 'react-icons/fa';
+
+
 
 const Dashboard = ({ provider }) => {
   const [metrics, setMetrics] = useState(null);
@@ -85,6 +89,7 @@ const Dashboard = ({ provider }) => {
         <div style={styles.gridItem}><IdleResources /></div>
         <div style={styles.gridItem}><SpendOverview /></div>
         <div style={styles.gridItem}><SpendHistory /></div>
+        <div style={styles.gridItem}><SecurityOverview /></div>
       </div>
     </div>
   );
