@@ -33,5 +33,5 @@ Cloud9 is an AI-driven cloud resource monitoring dashboard designed for startups
 1. Clone the Repository:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/cloud9.git
+git clone https://github.com/ady24s/cloud9.git
 cd cloud9
