@@ -4,10 +4,13 @@ import ActiveInstances from './ActiveInstances';
 import S3Buckets from './S3Buckets';
 import IdleResources from './IdleResources';
 import SpendHistory from './SpendHistory';
-import axios from 'axios';
 import { Card, Row, Col } from 'react-bootstrap';
+import axios from 'axios';
+import awsLogo from '../assets/aws.png';
+import googleLogo from '../assets/google-cloud.png';
+import azureLogo from '../assets/azure.jpeg'; // or azure.png
 
-const Dashboard = ({ provider }) => {  // ✅ Accept provider prop
+const Dashboard = ({ provider }) => {
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
@@ -22,11 +25,28 @@ const Dashboard = ({ provider }) => {  // ✅ Accept provider prop
     fetchMetrics();
   }, []);
 
+  const getProviderLogo = () => {
+    if (provider === 'aws') return awsLogo;
+    if (provider === 'gcp') return googleLogo;
+    if (provider === 'azure') return azureLogo;
+    return null;
+  };
+
+  const getProviderName = () => {
+    if (provider === 'aws') return 'AWS Cloud';
+    if (provider === 'gcp') return 'Google Cloud';
+    if (provider === 'azure') return 'Microsoft Azure';
+    return 'Unknown';
+  };
+
   return (
     <div style={styles.dashboardWrapper}>
-      <h1 style={styles.heading}>
-        Cloud9 : AI Powered Cloud Management System ({provider.toUpperCase()} User)
-      </h1>
+      <div style={styles.headingContainer}>
+        {getProviderLogo() && (
+          <img src={getProviderLogo()} alt="Provider Logo" style={styles.logo} />
+        )}
+        <h1 style={styles.heading}>Cloud9 Dashboard - {getProviderName()} User</h1>
+      </div>
 
       {/* Top Summary Cards */}
       {metrics && (
@@ -60,7 +80,6 @@ const Dashboard = ({ provider }) => {  // ✅ Accept provider prop
 
       {/* Main Grid */}
       <div style={styles.gridContainer}>
-        {/* ✅ Pass provider prop down */}
         <div style={styles.gridItem}><ActiveInstances provider={provider} /></div>
         <div style={styles.gridItem}><S3Buckets provider={provider} /></div>
         <div style={styles.gridItem}><IdleResources /></div>
@@ -79,11 +98,22 @@ const styles = {
     padding: '30px 15px',
     fontFamily: 'Arial, sans-serif',
   },
-  heading: {
+  headingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
     marginBottom: '20px',
-    fontSize: '36px',
+  },
+  heading: {
+    fontSize: '32px',
     fontWeight: 'bold',
     color: '#333',
+    marginTop: '10px',
+  },
+  logo: {
+    width: '80px',
+    height: '80px',
+    objectFit: 'contain',
   },
   summaryRow: {
     marginBottom: '30px',
