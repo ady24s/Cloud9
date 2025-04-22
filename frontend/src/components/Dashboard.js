@@ -4,15 +4,13 @@ import ActiveInstances from './ActiveInstances';
 import S3Buckets from './S3Buckets';
 import IdleResources from './IdleResources';
 import SpendHistory from './SpendHistory';
+import SecurityOverview from './SecurityOverview';
+import SecurityTrend from './SecurityTrend';
 import { Card, Row, Col } from 'react-bootstrap';
 import axios from 'axios';
 import awsLogo from '../assets/aws.png';
 import googleLogo from '../assets/google-cloud.png';
-import azureLogo from '../assets/azure.jpeg'; 
-import SecurityOverview from './SecurityOverview';
-import { FaExclamationTriangle, FaLock } from 'react-icons/fa';
-
-
+import azureLogo from '../assets/azure.jpeg';
 
 const Dashboard = ({ provider }) => {
   const [metrics, setMetrics] = useState(null);
@@ -40,11 +38,12 @@ const Dashboard = ({ provider }) => {
     if (provider === 'aws') return 'AWS Cloud';
     if (provider === 'gcp') return 'Google Cloud';
     if (provider === 'azure') return 'Microsoft Azure';
-    return 'Unknown';
+    return 'Unknown Provider';
   };
 
   return (
     <div style={styles.dashboardWrapper}>
+      {/* Heading with Logo */}
       <div style={styles.headingContainer}>
         {getProviderLogo() && (
           <img src={getProviderLogo()} alt="Provider Logo" style={styles.logo} />
@@ -52,7 +51,7 @@ const Dashboard = ({ provider }) => {
         <h1 style={styles.heading}>Cloud9 Dashboard - {getProviderName()} User</h1>
       </div>
 
-      {/* Top Summary Cards */}
+      {/* Summary Cards */}
       {metrics && (
         <Row style={styles.summaryRow}>
           <Col md={4}>
@@ -82,15 +81,27 @@ const Dashboard = ({ provider }) => {
         </Row>
       )}
 
-      {/* Main Grid */}
-      <div style={styles.gridContainer}>
-        <div style={styles.gridItem}><ActiveInstances provider={provider} /></div>
-        <div style={styles.gridItem}><S3Buckets provider={provider} /></div>
-        <div style={styles.gridItem}><IdleResources /></div>
-        <div style={styles.gridItem}><SpendOverview /></div>
-        <div style={styles.gridItem}><SpendHistory /></div>
-        <div style={styles.gridItem}><SecurityOverview /></div>
-      </div>
+      {/* Organized Grid: 2 by 2 sections */}
+      <Row style={styles.sectionRow}>
+        <Col md={6}><div style={styles.gridItem}><SpendOverview /></div></Col>
+        <Col md={6}><div style={styles.gridItem}><SpendHistory /></div></Col>
+      </Row>
+
+      <Row style={styles.sectionRow}>
+        <Col md={6}><div style={styles.gridItem}><ActiveInstances provider={provider} /></div></Col>
+        <Col md={6}><div style={styles.gridItem}><S3Buckets provider={provider} /></div></Col>
+      </Row>
+
+      <Row style={styles.sectionRow}>
+        <Col md={6}><div style={styles.gridItem}><IdleResources /></div></Col>
+        <Col md={6}><div style={styles.gridItem}><SecurityOverview /></div></Col>
+      </Row>
+
+      {/* Full Width for Trend */}
+      <Row style={styles.sectionRow}>
+        <Col md={12}><div style={styles.gridItem}><SecurityTrend /></div></Col>
+      </Row>
+
     </div>
   );
 };
@@ -100,7 +111,7 @@ const styles = {
     textAlign: 'center',
     backgroundColor: '#f5f9ff',
     minHeight: '100vh',
-    padding: '30px 15px',
+    padding: '30px 20px',
     fontFamily: 'Arial, sans-serif',
   },
   headingContainer: {
@@ -122,27 +133,21 @@ const styles = {
   },
   summaryRow: {
     marginBottom: '30px',
-    paddingLeft: '20px',
-    paddingRight: '20px',
+  },
+  sectionRow: {
+    marginBottom: '30px',
   },
   summaryCard: {
     borderRadius: '12px',
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    textAlign: 'center',
     backgroundColor: '#ffffff',
     marginBottom: '15px',
+    textAlign: 'center',
   },
   metricText: {
     fontSize: '24px',
     fontWeight: 'bold',
     color: '#007bff',
-  },
-  gridContainer: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '20px',
-    maxWidth: '1200px',
-    margin: '0 auto',
   },
   gridItem: {
     backgroundColor: '#ffffff',

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Spinner, Alert } from 'react-bootstrap';
-import axios from 'axios';
-import { FaExclamationTriangle, FaLock } from 'react-icons/fa';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { Card, Spinner, Alert, ListGroup, Badge } from "react-bootstrap";
+import { FaShieldAlt, FaLock, FaExclamationTriangle } from "react-icons/fa";
 
 const SecurityOverview = () => {
   const [securityData, setSecurityData] = useState(null);
@@ -9,48 +9,83 @@ const SecurityOverview = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchSecurityData = async () => {
+    const fetchSecurity = async () => {
       try {
-        const response = await axios.get('http://127.0.0.1:8000/security');
+        const response = await axios.get("http://127.0.0.1:8000/security");
         setSecurityData(response.data);
-      } catch (error) {
-        console.error('Error fetching security data:', error);
-        setError('Failed to load security data');
+      } catch (err) {
+        setError("Failed to fetch security data");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSecurityData();
+    fetchSecurity();
   }, []);
 
   return (
     <div>
-      <h5 style={styles.title}>🔒 Security Overview</h5>
-
+      <h5 style={styles.title}>🛡️ Security Overview</h5>
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
 
       {securityData && (
-        <Card style={securityData.issues_found > 0 ? styles.alertCard : styles.safeCard}>
+        <Card style={styles.card}>
           <Card.Body>
-            {securityData.issues_found > 0 ? (
-              <>
-                <FaExclamationTriangle style={{ color: 'red', fontSize: '30px', marginBottom: '10px' }} />
-                <Card.Title style={{ color: 'red' }}>Risks Detected</Card.Title>
-                <Card.Text>
-                  Public Buckets: {securityData.public_buckets} <br />
-                  Exposed Ports: {securityData.open_ports.join(', ') || 'None'} <br />
-                  Recommendation: {securityData.recommendation}
-                </Card.Text>
-              </>
-            ) : (
-              <>
-                <FaLock style={{ color: 'green', fontSize: '30px', marginBottom: '10px' }} />
-                <Card.Title style={{ color: 'green' }}>All Good!</Card.Title>
-                <Card.Text>No major security risks detected.</Card.Text>
-              </>
-            )}
+            <Card.Title style={styles.cardTitle}>Current Security Posture</Card.Title>
+            
+            <ListGroup variant="flush">
+              <ListGroup.Item>
+                <strong>Compliance Score:</strong>{" "}
+                <Badge bg={securityData.compliance_score >= 80 ? "success" : "danger"}>
+                  {securityData.compliance_score}%
+                </Badge>
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>Public Buckets:</strong>{" "}
+                {securityData.public_buckets ? <Badge bg="danger">Exposed</Badge> : <Badge bg="success">Secure</Badge>}
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>Open Ports:</strong>{" "}
+                {securityData.open_ports.length > 0
+                  ? securityData.open_ports.join(", ")
+                  : "None"}
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>IAM Misconfiguration:</strong>{" "}
+                {securityData.iam_misconfiguration ? <Badge bg="danger">Risk</Badge> : <Badge bg="success">Safe</Badge>}
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>Encryption Missing:</strong>{" "}
+                {securityData.encryption_missing ? <Badge bg="danger">Missing</Badge> : <Badge bg="success">Enabled</Badge>}
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>MFA Missing:</strong>{" "}
+                {securityData.mfa_missing ? <Badge bg="danger">Not Enforced</Badge> : <Badge bg="success">Enforced</Badge>}
+              </ListGroup.Item>
+
+              <ListGroup.Item>
+                <strong>Suspicious Logins:</strong>{" "}
+                {securityData.suspicious_login_detected ? <Badge bg="danger">Detected</Badge> : <Badge bg="success">None</Badge>}
+              </ListGroup.Item>
+            </ListGroup>
+
+            <hr />
+
+            <h6>🛠️ Recommendations:</h6>
+            <ul>
+              {securityData.recommendations.map((rec, index) => (
+                <li key={index}>
+                  <FaExclamationTriangle color="orange" /> {rec}
+                </li>
+              ))}
+            </ul>
+
           </Card.Body>
         </Card>
       )}
@@ -60,23 +95,18 @@ const SecurityOverview = () => {
 
 const styles = {
   title: {
-    marginBottom: '15px',
-    fontWeight: 'bold',
-    color: '#333',
+    marginBottom: "15px",
+    fontWeight: "bold",
+    color: "#333",
   },
-  alertCard: {
-    backgroundColor: '#ffe6e6',
-    borderColor: 'red',
-    borderRadius: '12px',
-    boxShadow: '0 4px 8px rgba(255, 0, 0, 0.2)',
-    padding: '20px',
+  card: {
+    borderRadius: "12px",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    padding: "10px",
   },
-  safeCard: {
-    backgroundColor: '#e6ffe6',
-    borderColor: 'green',
-    borderRadius: '12px',
-    boxShadow: '0 4px 8px rgba(0, 255, 0, 0.2)',
-    padding: '20px',
+  cardTitle: {
+    marginBottom: "10px",
+    fontSize: "20px",
   },
 };
 

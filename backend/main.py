@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 # Initialize FastAPI app
 app = FastAPI()
 
-# Configure CORS
+# CORS config
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,13 +23,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Database configuration
+# Database setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./cloud_resources.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# SQLAlchemy Models
+# SQLAlchemy Model
 class Resource(Base):
     __tablename__ = "resources"
     id = Column(Integer, primary_key=True, index=True)
@@ -38,7 +38,7 @@ class Resource(Base):
     status = Column(String)
     usage_hours = Column(Float)
 
-# Create database tables
+# Create tables
 Base.metadata.create_all(bind=engine)
 
 # Dependency to get DB session
@@ -55,7 +55,6 @@ class ResourceBase(BaseModel):
     resource_type: str
     status: str
     usage_hours: float
-
     class Config:
         orm_mode = True
 
@@ -65,12 +64,12 @@ class ResourceUpdate(BaseModel):
     status: str | None = None
     usage_hours: float | None = None
 
-# Root endpoint
+# -------------------- Core APIs --------------------
+
 @app.get("/")
 def read_root():
-    return {"message": "Hello, FastAPI is running!"}
+    return {"message": "Hello, FastAPI backend is running!"}
 
-# CRUD Operations
 @app.get("/resources/")
 def get_resources(db: Session = Depends(get_db)):
     return db.query(Resource).all()
@@ -103,113 +102,194 @@ def delete_resource(resource_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Resource deleted successfully"}
 
-# ------------------ Dummy AWS Data Generators ------------------
-instance_types = ["t2.micro", "t2.small", "t2.medium", "t3.large", "m5.large"]
+# -------------------- Cloud Simulation --------------------
+
+instance_types = {
+    'aws': ["t2.micro", "m5.large", "c5.xlarge"],
+    'gcp': ["n1-standard-1", "e2-medium", "n2-standard-2"],
+    'azure': ["Standard_B1s", "Standard_D2s_v3", "Standard_F4s_v2"]
+}
 states = ["running", "stopped", "terminated"]
 
-@app.get("/aws/instances")
-def get_aws_instances():
+@app.get("/instances")
+def get_instances(provider: str = Query("aws")):
     instances = []
-    for _ in range(5):  # Generate 5 random instances
-        launch_time = datetime.now() - timedelta(days=random.randint(0, 100))
+    for _ in range(5):
+        launch_time = datetime.now() - timedelta(days=random.randint(0, 300))
         instances.append({
-            "id": f"i-{random.randint(100000,999999)}fake",
-            "type": random.choice(instance_types),
+            "id": f"{provider[:3]}-vm-{random.randint(1000, 9999)}",
+            "type": random.choice(instance_types.get(provider, ["t2.micro"])),
             "state": random.choice(states),
             "launch_time": launch_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "cpu_usage": round(random.uniform(1, 90), 2),
+            "memory_usage": round(random.uniform(1, 85), 2),
+            "uptime_hours": random.randint(10, 700),
+            "network_in": random.randint(10, 3000),
+            "disk_read": random.randint(10, 2000),
+            "public_ip": random.choice([True, False]),
+            "open_ports": random.sample([22, 80, 443, 3389], k=random.randint(0, 2))
         })
     return {"instances": instances}
 
-@app.get("/aws/s3")
-def get_s3_buckets():
+@app.get("/storage")
+def get_storage(provider: str = Query("aws")):
     buckets = []
-    for i in range(3):
-        creation_date = datetime.now() - timedelta(days=random.randint(10, 365))
+    for _ in range(3):
+        creation_date = datetime.now() - timedelta(days=random.randint(30, 900))
         buckets.append({
-            "name": f"cloud9-bucket-{random.randint(1000,9999)}",
-            "creation_date": creation_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "name": f"{provider[:3]}-storage-{random.randint(1000,9999)}",
+            "creation_date": creation_date.strftime("%Y-%m-%d"),
+            "public_access": random.choice([True, False])
         })
     return {"buckets": buckets}
 
-# ------------------ AI Idle Detection ------------------
-@app.get("/ai/idle-detection")
-def detect_idle_resources():
-    try:
-        resources = pd.read_csv("resources.csv")
-        features = resources[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]]
-        model = IsolationForest(contamination=0.1, random_state=42)
-        resources["anomaly"] = model.fit_predict(features)
-        idle_resources = resources[resources["anomaly"] == -1].drop(columns=["anomaly"]).to_dict(orient="records")
-        return {"idle_resources": idle_resources}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in idle detection: {e}")
+@app.get("/security")
+def get_security(provider: str = Query("aws")):
+    """
+    Simulate dynamic cybersecurity findings for Cloud9 Dashboard.
+    """
 
-# ------------------ Static Metrics ------------------
+    # Simulate Public Resource Exposure
+    public_bucket_risk = random.choices([True, False], weights=[25, 75])[0]
+
+    # Simulate Open Ports Risk
+    high_risk_ports = [22, 3389, 80, 443]
+    open_ports = random.sample(high_risk_ports, k=random.choice([0, 1, 2]))
+
+    # Simulate IAM Misconfiguration
+    iam_misconfig = random.choices([True, False], weights=[20, 80])[0]
+
+    # Simulate Missing Encryption on Storage
+    encryption_missing = random.choices([True, False], weights=[15, 85])[0]
+
+    # Simulate MFA Enforcement Check
+    mfa_missing = random.choices([True, False], weights=[10, 90])[0]
+
+    # Simulate Compliance Score (Out of 100)
+    compliance_score = random.randint(75, 99)
+    if public_bucket_risk or open_ports or iam_misconfig:
+        compliance_score -= random.randint(5, 15)
+    if encryption_missing or mfa_missing:
+        compliance_score -= random.randint(3, 10)
+    compliance_score = max(50, compliance_score)
+
+    # Simulate Threat Detection (e.g., suspicious IPs)
+    suspicious_login = random.choices([True, False], weights=[10, 90])[0]
+
+    # Build Recommendations List
+    recommendations = []
+
+    if public_bucket_risk:
+        recommendations.append("Restrict public access to storage buckets.")
+    if open_ports:
+        recommendations.append("Close unnecessary ports (22/3389/80).")
+    if iam_misconfig:
+        recommendations.append("Review IAM policies and apply least privilege.")
+    if encryption_missing:
+        recommendations.append("Enable encryption on storage services.")
+    if mfa_missing:
+        recommendations.append("Enforce Multi-Factor Authentication (MFA) for all users.")
+    if suspicious_login:
+        recommendations.append("Investigate suspicious login attempts immediately.")
+
+    if not recommendations:
+        recommendations.append("No critical issues detected. Maintain current security posture.")
+
+    return {
+        "issues_found": len(recommendations) if recommendations else 0,
+        "public_buckets": int(public_bucket_risk),
+        "open_ports": open_ports,
+        "iam_misconfiguration": bool(iam_misconfig),
+        "encryption_missing": bool(encryption_missing),
+        "mfa_missing": bool(mfa_missing),
+        "suspicious_login_detected": bool(suspicious_login),
+        "compliance_score": compliance_score,
+        "recommendations": recommendations
+    }
+
+
 @app.get("/metrics")
 def get_metrics():
     return {
-        "totalSpend": 12500,
-        "idleResources": 5,
-        "predictedSavings": 800,
-        "anomalies": 3
+        "totalSpend": random.randint(10000, 40000),
+        "idleResources": random.randint(1, 5),
+        "predictedSavings": random.randint(1000, 8000),
+        "anomalies": random.randint(0, 3)
     }
 
-# ------------------ Email Alert (Placeholder) ------------------
+@app.get("/spend-history")
+def get_spend_history():
+    return {
+        "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+        "spend": [
+            random.randint(1800, 2500),
+            random.randint(2000, 2700),
+            random.randint(2100, 2900),
+            random.randint(2200, 3000),
+            random.randint(2300, 3100),
+            random.randint(4000, 5000)  # spike
+        ]
+    }
+
+# -------------------- AI Idle Resource Detection --------------------
+
+@app.get("/ai/idle-detection")
+def detect_idle_resources(provider: str = Query("aws")):
+    """
+    Dynamically simulate cloud resources and detect idle ones using Isolation Forest AI.
+    """
+    # Simulate random resources
+    resources = []
+    for _ in range(15):  # 15 resources
+        resources.append({
+            "id": f"{provider[:3]}-res-{random.randint(1000, 9999)}",
+            "resource_type": random.choice(["VM", "Storage", "Database"]),
+            "cpu_usage": round(random.uniform(1, 90), 2),
+            "memory_usage": round(random.uniform(1, 90), 2),
+            "uptime": random.randint(10, 800),
+            "network_in": random.randint(10, 5000),
+            "disk_read": random.randint(5, 3000),
+            "status": random.choice(["running", "stopped"])
+        })
+
+    df = pd.DataFrame(resources)
+
+    # Apply Isolation Forest for anomaly (idle) detection
+    model = IsolationForest(contamination=0.15, random_state=42)
+    df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
+
+    idle_resources = df[df["anomaly"] == -1].drop(columns=["anomaly"]).to_dict(orient="records")
+
+    return {"idle_resources": idle_resources}
+
+# -------------------- Email Alerts (Optional) --------------------
+
 def send_email_alert(message):
     msg = MIMEText(message)
     msg["Subject"] = "Cloud Dashboard Alert"
-    msg["From"] = "youremail@example.com"
-    msg["To"] = "recipient@example.com"
+    msg["From"] = "adyasha24@gmail.com"
+    msg["To"] = "patilaarya106@gmail.com"
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
-            server.login("youremail@example.com", "yourpassword")
+            server.login("adyasha24@gmail.com", "xxxxx")
             server.sendmail(msg["From"], msg["To"], msg.as_string())
     except Exception as e:
         print(f"Failed to send email: {e}")
 
+@app.get("/security/trend")
+def get_security_trend():
+    """
+    Simulate compliance score trend over the past 7 days.
+    """
+    today = datetime.now()
+    trend = []
 
-@app.get("/spend-history")
-def get_spend_history():
-    # Dummy 6-month spend history data
-    return {
-        "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        "spend": [2000, 2200, 2500, 2300, 2400, 3100]  # last value is a spike
-    }
+    for i in range(7):
+        day = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        score = random.randint(75, 95)  # Simulate score
+        trend.append({"date": day, "compliance_score": score})
 
+    trend.reverse()  # Latest date last
+    return trend
 
-@app.get("/gcp/instances")
-def get_gcp_instances():
-    return [
-        {"id": "gcp-vm-001", "type": "n1-standard-1", "state": "RUNNING"},
-        {"id": "gcp-vm-002", "type": "e2-medium", "state": "TERMINATED"},
-        {"id": "gcp-vm-003", "type": "n2-standard-2", "state": "RUNNING"},
-    ]
-@app.get("/gcp/storage")
-def get_gcp_storage_buckets():
-    return [
-        {"name": "gcp-bucket-001", "creation_date": "2024-11-01"},
-        {"name": "gcp-bucket-002", "creation_date": "2025-01-12"},
-    ]
-
-
-@app.get("/azure/instances")
-def get_azure_instances():
-    return [
-        {"id": "azure-vm-1", "type": "Standard_B1s", "state": "Running"},
-        {"id": "azure-vm-2", "type": "Standard_D2s_v3", "state": "Stopped"}
-    ]
-@app.get("/azure/storage")
-def get_azure_storage_buckets():
-    return [
-        {"name": "azure-container-001", "creation_date": "2024-10-15"},
-        {"name": "azure-container-002", "creation_date": "2025-02-20"},
-    ]
-@app.get("/security")
-def get_security_status():
-    return {
-        "issues_found": 1,
-        "public_buckets": 1,
-        "open_ports": [22, 8080],
-        "recommendation": "Close unused ports and restrict public bucket access."
-    }

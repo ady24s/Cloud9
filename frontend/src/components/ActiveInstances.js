@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Table, Spinner, Alert } from "react-bootstrap";
 import axios from "axios";
+import { Table, Spinner, Alert } from "react-bootstrap";
 
 const ActiveInstances = ({ provider }) => {
   const [instances, setInstances] = useState([]);
@@ -10,29 +10,8 @@ const ActiveInstances = ({ provider }) => {
   useEffect(() => {
     const getInstances = async () => {
       try {
-        let endpoint = "";
-
-        // ✅ Dynamically decide API endpoint based on provider
-        if (provider === "aws") {
-          endpoint = "http://127.0.0.1:8000/aws/instances";
-        } else if (provider === "gcp") {
-          endpoint = "http://127.0.0.1:8000/gcp/instances";
-        } else if (provider === "azure") {
-          endpoint = "http://127.0.0.1:8000/azure/instances";
-        }
-
-        const response = await axios.get(endpoint);
-
-        console.log("Fetched Instances: ", response.data); // Debugging Line
-
-        if (response.data && (response.data.instances || Array.isArray(response.data))) {
-          // AWS case (response.data.instances), or GCP/Azure (just array)
-          const data = response.data.instances || response.data;
-
-          setInstances(data);
-        } else {
-          setError("Invalid data structure received from API");
-        }
+        const response = await axios.get(`http://127.0.0.1:8000/instances?provider=${provider}`);
+        setInstances(response.data.instances);
       } catch (err) {
         console.error("Error fetching instances:", err);
         setError("Failed to fetch instances");
@@ -46,10 +25,9 @@ const ActiveInstances = ({ provider }) => {
 
   return (
     <div>
-      <h5>✅ Active Cloud Instances</h5>
+      <h5>💻 Active Instances</h5>
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
-      {!loading && !error && instances.length === 0 && <p>No instances found.</p>}
       {!loading && !error && instances.length > 0 && (
         <Table striped bordered hover responsive>
           <thead>
@@ -57,14 +35,16 @@ const ActiveInstances = ({ provider }) => {
               <th>ID</th>
               <th>Type</th>
               <th>State</th>
+              <th>Launch Time</th>
             </tr>
           </thead>
           <tbody>
-            {instances.map((instance, index) => (
-              <tr key={index}>
+            {instances.map((instance) => (
+              <tr key={instance.id}>
                 <td>{instance.id}</td>
                 <td>{instance.type}</td>
                 <td>{instance.state}</td>
+                <td>{instance.launch_time}</td>
               </tr>
             ))}
           </tbody>
