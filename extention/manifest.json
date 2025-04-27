@@ -1,0 +1,12 @@
+{
+    "manifest_version": 3,
+    "name": "Cloud9 Alerts",
+    "version": "1.0",
+    "description": "Get quick alerts from your Cloud9 dashboard.",
+    "permissions": ["storage", "activeTab", "scripting"],
+    "host_permissions": ["http://localhost:8000/*"],
+    "action": {
+      "default_popup": "popup.html"
+    }
+  }
+  
