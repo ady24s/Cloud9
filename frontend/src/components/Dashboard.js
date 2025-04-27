@@ -1,19 +1,23 @@
+// src/components/Dashboard.js
+
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, Row, Col, Button } from 'react-bootstrap';
+import axios from 'axios';
 import SpendOverview from './SpendOverview';
+import SpendHistory from './SpendHistory';
 import ActiveInstances from './ActiveInstances';
 import S3Buckets from './S3Buckets';
 import IdleResources from './IdleResources';
-import SpendHistory from './SpendHistory';
 import SecurityOverview from './SecurityOverview';
 import SecurityTrend from './SecurityTrend';
-import { Card, Row, Col } from 'react-bootstrap';
-import axios from 'axios';
 import awsLogo from '../assets/aws.png';
 import googleLogo from '../assets/google-cloud.png';
 import azureLogo from '../assets/azure.jpeg';
 
 const Dashboard = ({ provider }) => {
   const [metrics, setMetrics] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -49,6 +53,19 @@ const Dashboard = ({ provider }) => {
           <img src={getProviderLogo()} alt="Provider Logo" style={styles.logo} />
         )}
         <h1 style={styles.heading}>Cloud9 Dashboard - {getProviderName()} User</h1>
+
+        {/* Navigation Buttons */}
+        <div style={styles.buttonGroup}>
+          <Button variant="outline-primary" onClick={() => navigate('/security')} style={styles.navButton}>
+            Security
+          </Button>
+          <Button variant="outline-success" onClick={() => navigate('/budget')} style={styles.navButton}>
+            Budget
+          </Button>
+          <Button variant="outline-warning" onClick={() => navigate('/optimizer')} style={styles.navButton}>
+            Optimizer
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -57,8 +74,8 @@ const Dashboard = ({ provider }) => {
           <Col md={4}>
             <Card style={styles.summaryCard}>
               <Card.Body>
-                <Card.Title>Total Instances</Card.Title>
-                <Card.Text style={styles.metricText}>{metrics.totalInstances || 15}</Card.Text>
+                <Card.Title>Total Spend</Card.Title>
+                <Card.Text style={styles.metricText}>₹ {metrics.totalSpend}</Card.Text>
               </Card.Body>
             </Card>
           </Col>
@@ -130,6 +147,16 @@ const styles = {
     width: '80px',
     height: '80px',
     objectFit: 'contain',
+  },
+  buttonGroup: {
+    marginTop: '20px',
+    display: 'flex',
+    gap: '15px',
+  },
+  navButton: {
+    padding: '8px 20px',
+    fontSize: '16px',
+    borderRadius: '8px',
   },
   summaryRow: {
     marginBottom: '30px',

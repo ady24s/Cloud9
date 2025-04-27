@@ -4,12 +4,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import pandas as pd
-from sklearn.ensemble import IsolationForest
-import smtplib
-from email.mime.text import MIMEText
+import numpy as np
+import os
 import random
 from datetime import datetime, timedelta
+from sklearn.ensemble import IsolationForest
+from sklearn.linear_model import LinearRegression
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+import joblib
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -38,10 +43,10 @@ class Resource(Base):
     status = Column(String)
     usage_hours = Column(Float)
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
-# Dependency to get DB session
+# Dependency
+
 def get_db():
     db = SessionLocal()
     try:
@@ -55,6 +60,7 @@ class ResourceBase(BaseModel):
     resource_type: str
     status: str
     usage_hours: float
+
     class Config:
         orm_mode = True
 
@@ -64,11 +70,11 @@ class ResourceUpdate(BaseModel):
     status: str | None = None
     usage_hours: float | None = None
 
-# -------------------- Core APIs --------------------
+# ----------- Core APIs ------------
 
 @app.get("/")
-def read_root():
-    return {"message": "Hello, FastAPI backend is running!"}
+def root():
+    return {"message": "FastAPI backend is running!"}
 
 @app.get("/resources/")
 def get_resources(db: Session = Depends(get_db)):
@@ -102,7 +108,7 @@ def delete_resource(resource_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Resource deleted successfully"}
 
-# -------------------- Cloud Simulation --------------------
+# ----------- Simulated Cloud APIs ------------
 
 instance_types = {
     'aws': ["t2.micro", "m5.large", "c5.xlarge"],
@@ -143,71 +149,6 @@ def get_storage(provider: str = Query("aws")):
         })
     return {"buckets": buckets}
 
-@app.get("/security")
-def get_security(provider: str = Query("aws")):
-    """
-    Simulate dynamic cybersecurity findings for Cloud9 Dashboard.
-    """
-
-    # Simulate Public Resource Exposure
-    public_bucket_risk = random.choices([True, False], weights=[25, 75])[0]
-
-    # Simulate Open Ports Risk
-    high_risk_ports = [22, 3389, 80, 443]
-    open_ports = random.sample(high_risk_ports, k=random.choice([0, 1, 2]))
-
-    # Simulate IAM Misconfiguration
-    iam_misconfig = random.choices([True, False], weights=[20, 80])[0]
-
-    # Simulate Missing Encryption on Storage
-    encryption_missing = random.choices([True, False], weights=[15, 85])[0]
-
-    # Simulate MFA Enforcement Check
-    mfa_missing = random.choices([True, False], weights=[10, 90])[0]
-
-    # Simulate Compliance Score (Out of 100)
-    compliance_score = random.randint(75, 99)
-    if public_bucket_risk or open_ports or iam_misconfig:
-        compliance_score -= random.randint(5, 15)
-    if encryption_missing or mfa_missing:
-        compliance_score -= random.randint(3, 10)
-    compliance_score = max(50, compliance_score)
-
-    # Simulate Threat Detection (e.g., suspicious IPs)
-    suspicious_login = random.choices([True, False], weights=[10, 90])[0]
-
-    # Build Recommendations List
-    recommendations = []
-
-    if public_bucket_risk:
-        recommendations.append("Restrict public access to storage buckets.")
-    if open_ports:
-        recommendations.append("Close unnecessary ports (22/3389/80).")
-    if iam_misconfig:
-        recommendations.append("Review IAM policies and apply least privilege.")
-    if encryption_missing:
-        recommendations.append("Enable encryption on storage services.")
-    if mfa_missing:
-        recommendations.append("Enforce Multi-Factor Authentication (MFA) for all users.")
-    if suspicious_login:
-        recommendations.append("Investigate suspicious login attempts immediately.")
-
-    if not recommendations:
-        recommendations.append("No critical issues detected. Maintain current security posture.")
-
-    return {
-        "issues_found": len(recommendations) if recommendations else 0,
-        "public_buckets": int(public_bucket_risk),
-        "open_ports": open_ports,
-        "iam_misconfiguration": bool(iam_misconfig),
-        "encryption_missing": bool(encryption_missing),
-        "mfa_missing": bool(mfa_missing),
-        "suspicious_login_detected": bool(suspicious_login),
-        "compliance_score": compliance_score,
-        "recommendations": recommendations
-    }
-
-
 @app.get("/metrics")
 def get_metrics():
     return {
@@ -221,26 +162,15 @@ def get_metrics():
 def get_spend_history():
     return {
         "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        "spend": [
-            random.randint(1800, 2500),
-            random.randint(2000, 2700),
-            random.randint(2100, 2900),
-            random.randint(2200, 3000),
-            random.randint(2300, 3100),
-            random.randint(4000, 5000)  # spike
-        ]
+        "spend": [random.randint(1800, 3000) for _ in range(6)]
     }
 
-# -------------------- AI Idle Resource Detection --------------------
+# ----------- AI Idle Resource Detection ------------
 
 @app.get("/ai/idle-detection")
 def detect_idle_resources(provider: str = Query("aws")):
-    """
-    Dynamically simulate cloud resources and detect idle ones using Isolation Forest AI.
-    """
-    # Simulate random resources
     resources = []
-    for _ in range(15):  # 15 resources
+    for _ in range(15):
         resources.append({
             "id": f"{provider[:3]}-res-{random.randint(1000, 9999)}",
             "resource_type": random.choice(["VM", "Storage", "Database"]),
@@ -248,48 +178,167 @@ def detect_idle_resources(provider: str = Query("aws")):
             "memory_usage": round(random.uniform(1, 90), 2),
             "uptime": random.randint(10, 800),
             "network_in": random.randint(10, 5000),
-            "disk_read": random.randint(5, 3000),
-            "status": random.choice(["running", "stopped"])
+            "disk_read": random.randint(5, 3000)
         })
-
     df = pd.DataFrame(resources)
-
-    # Apply Isolation Forest for anomaly (idle) detection
     model = IsolationForest(contamination=0.15, random_state=42)
     df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
-
     idle_resources = df[df["anomaly"] == -1].drop(columns=["anomaly"]).to_dict(orient="records")
-
     return {"idle_resources": idle_resources}
 
-# -------------------- Email Alerts (Optional) --------------------
+@app.get("/security")
+def get_security(provider: str = Query("aws")):
+    """
+    Simulate cybersecurity findings for Cloud9 Dashboard.
+    """
+    public_bucket_risk = random.choices([True, False], weights=[25, 75])[0]
+    open_ports = random.sample([22, 3389, 80, 443], k=random.randint(0, 2))
+    iam_misconfig = random.choices([True, False], weights=[20, 80])[0]
+    encryption_missing = random.choices([True, False], weights=[15, 85])[0]
+    mfa_missing = random.choices([True, False], weights=[10, 90])[0]
+    suspicious_login = random.choices([True, False], weights=[10, 90])[0]
 
-def send_email_alert(message):
-    msg = MIMEText(message)
-    msg["Subject"] = "Cloud Dashboard Alert"
-    msg["From"] = "adyasha24@gmail.com"
-    msg["To"] = "patilaarya106@gmail.com"
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login("adyasha24@gmail.com", "xxxxx")
-            server.sendmail(msg["From"], msg["To"], msg.as_string())
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+    compliance_score = random.randint(75, 99)
+    if public_bucket_risk or open_ports or iam_misconfig:
+        compliance_score -= random.randint(5, 15)
+    if encryption_missing or mfa_missing:
+        compliance_score -= random.randint(3, 10)
+    compliance_score = max(50, compliance_score)
+
+    recommendations = []
+    if public_bucket_risk:
+        recommendations.append("Restrict public access to storage buckets.")
+    if open_ports:
+        recommendations.append("Close unnecessary ports (22/3389/80).")
+    if iam_misconfig:
+        recommendations.append("Review IAM policies and apply least privilege.")
+    if encryption_missing:
+        recommendations.append("Enable encryption on storage services.")
+    if mfa_missing:
+        recommendations.append("Enforce MFA for all users.")
+    if suspicious_login:
+        recommendations.append("Investigate suspicious login attempts immediately.")
+    if not recommendations:
+        recommendations.append("No critical issues detected.")
+
+    return {
+        "issues_found": len(recommendations),
+        "public_buckets": int(public_bucket_risk),
+        "open_ports": open_ports,
+        "iam_misconfiguration": bool(iam_misconfig),
+        "encryption_missing": bool(encryption_missing),
+        "mfa_missing": bool(mfa_missing),
+        "suspicious_login_detected": bool(suspicious_login),
+        "compliance_score": compliance_score,
+        "recommendations": recommendations
+    }
 
 @app.get("/security/trend")
 def get_security_trend():
     """
-    Simulate compliance score trend over the past 7 days.
+    Simulate 7 days of compliance score trend.
     """
     today = datetime.now()
     trend = []
-
     for i in range(7):
         day = (today - timedelta(days=i)).strftime("%Y-%m-%d")
-        score = random.randint(75, 95)  # Simulate score
+        score = random.randint(75, 95)
         trend.append({"date": day, "compliance_score": score})
-
-    trend.reverse()  # Latest date last
+    trend.reverse()
     return trend
 
+
+def generate_fake_resources(n=10):
+    resources = []
+    for _ in range(n):
+        resource_id = f"res-{random.randint(1000, 9999)}"
+        resources.append({
+            "id": resource_id,
+            "cpu_usage": round(random.uniform(0, 90), 2),
+            "memory_usage": round(random.uniform(0, 90), 2),
+            "uptime": random.randint(0, 700),
+            "network_in": random.randint(0, 5000),
+            "disk_read": random.randint(0, 3000),
+        })
+    return resources
+def train_model():
+    """
+    Trains a KMeans model with fake data and saves it to disk.
+    """
+    # Simulate training data
+    fake_data = np.array([
+        [5, 10, 100, 20, 50],    # underutilized
+        [8, 15, 150, 30, 60],
+        [50, 60, 300, 100, 200], # moderately utilized
+        [55, 65, 350, 120, 220],
+        [0, 0, 0, 5, 10],        # idle
+        [0, 0, 0, 2, 5],
+        [0, 0, 0, 3, 7],
+    ])
+    scaler = StandardScaler()
+    normalized_data = scaler.fit_transform(fake_data)
+
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    kmeans.fit(normalized_data)
+
+    joblib.dump(kmeans, "kmeans_model.joblib")
+    joblib.dump(scaler, "scaler.joblib")
+    print("✅ Model and Scaler trained and saved successfully.")
+def normalize_and_extract_features(resources):
+    """
+    Extract and normalize features from resource metrics.
+    """
+    features = []
+    for resource in resources:
+        features.append([
+            resource.get("cpu_usage", 0),
+            resource.get("memory_usage", 0),
+            resource.get("uptime", 0),
+            resource.get("network_in", 0),
+            resource.get("disk_read", 0),
+        ])
+    return np.array(features)
+
+def run_optimizer(resources):
+    """
+    Predict clusters and generate optimization recommendations.
+    """
+    try:
+        kmeans = joblib.load("kmeans_model.joblib")
+        scaler = joblib.load("scaler.joblib")
+
+        features = normalize_and_extract_features(resources)
+        normalized_features = scaler.transform(features)
+        clusters = kmeans.predict(normalized_features)
+
+        recommendations = []
+        for i, resource in enumerate(resources):
+            cluster_id = clusters[i]
+            if cluster_id == 0:
+                recommendation = "Downsize instance type (e.g., m5.large → t3.medium)"
+            elif cluster_id == 1:
+                recommendation = "Switch to spot instances"
+            else:
+                recommendation = "Archive idle S3 buckets to Glacier"
+
+            recommendations.append({
+                "resource_id": resource["id"],
+                "cluster_id": int(cluster_id),
+                "recommendation": recommendation
+            })
+
+        return recommendations
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in optimizer: {str(e)}")
+
+@app.post("/optimizer")
+def optimize_resources():
+    resources = generate_fake_resources(12)
+    recommendations = run_optimizer(resources)
+    return {"recommendations": recommendations}
+
+@app.on_event("startup")
+def startup_event():
+    # Train model automatically when server starts
+    if not (os.path.exists("kmeans_model.joblib") and os.path.exists("scaler.joblib")):
+        train_model()

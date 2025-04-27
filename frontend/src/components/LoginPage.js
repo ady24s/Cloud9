@@ -1,11 +1,11 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // Updated for React Router v7
 import googleLogo from '../assets/google-cloud.png';
 import azureLogo from '../assets/azure.jpeg';
 import awsLogo from '../assets/aws.png';
 
 const LoginPage = ({ setProvider }) => {
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Now correct
 
   const handleLogin = (provider) => {
     setProvider(provider);

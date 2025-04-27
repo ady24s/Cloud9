@@ -1,24 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';  // <== you forgot useState
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
+import SecurityOverview from './components/SecurityOverview';
+import BudgetPage from './components/BudgetPage';
+import Optimizer from './components/Optimizer';
 import LoginPage from './components/LoginPage';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
-  const [provider, setProvider] = useState(null);
-
-  useEffect(() => {
-    const savedProvider = localStorage.getItem('provider');
-    if (savedProvider) {
-      setProvider(savedProvider);
-    }
-  }, []);
+  const [provider, setProvider] = useState(null);   // <== ADD this line
 
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LoginPage setProvider={setProvider} />} />
-        <Route path="/dashboard" element={provider ? <Dashboard provider={provider} /> : <Navigate to="/" />} />
+        <Route path="/" element={<LoginPage setProvider={setProvider} />} />  {/* <== FIX here */}
+        <Route path="/dashboard" element={<Dashboard provider={provider} />} />  {/* <== pass provider */}
+        <Route path="/security" element={<SecurityOverview />} />
+        <Route path="/budget" element={<BudgetPage />} />
+        <Route path="/optimizer" element={<Optimizer />} />
       </Routes>
     </Router>
   );
