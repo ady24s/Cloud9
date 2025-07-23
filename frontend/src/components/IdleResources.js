@@ -10,7 +10,9 @@ const IdleResources = () => {
   useEffect(() => {
     const fetchIdleResources = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/ai/idle-detection");
+        const response = await axios.get(
+          "http://127.0.0.1:8010/ai/idle-detection"
+        );
         setIdleResources(response.data.idle_resources);
       } catch (err) {
         setError("Failed to fetch idle resources");
@@ -27,7 +29,9 @@ const IdleResources = () => {
       <h5>💤 Detected Idle Resources</h5>
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
-      {!loading && !error && idleResources.length === 0 && <p>No idle resources found.</p>}
+      {!loading && !error && idleResources.length === 0 && (
+        <p>No idle resources found.</p>
+      )}
       {!loading && !error && idleResources.length > 0 && (
         <Table striped bordered hover responsive>
           <thead>

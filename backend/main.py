@@ -69,6 +69,9 @@ class ResourceUpdate(BaseModel):
     resource_type: str | None = None
     status: str | None = None
     usage_hours: float | None = None
+    
+class ChatMessage(BaseModel):
+    message: str
 
 # ----------- Core APIs ------------
 
@@ -342,3 +345,11 @@ def startup_event():
     # Train model automatically when server starts
     if not (os.path.exists("kmeans_model.joblib") and os.path.exists("scaler.joblib")):
         train_model()
+
+@app.post("/chat")
+def chat(message: ChatMessage):
+    """
+    Chat endpoint for handling messages
+    """
+    return {"response": "Message received: " + message.message}
+

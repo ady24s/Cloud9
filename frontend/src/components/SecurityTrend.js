@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Spinner, Alert, Card } from "react-bootstrap";
 
 const SecurityTrend = () => {
@@ -11,7 +19,9 @@ const SecurityTrend = () => {
   useEffect(() => {
     const fetchTrend = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/security/trend");
+        const response = await axios.get(
+          "http://127.0.0.1:8010/security/trend"
+        );
         setTrendData(response.data);
       } catch (err) {
         setError("Failed to fetch security trend data");
@@ -38,7 +48,12 @@ const SecurityTrend = () => {
                 <XAxis dataKey="date" />
                 <YAxis domain={[50, 100]} />
                 <Tooltip />
-                <Line type="monotone" dataKey="compliance_score" stroke="#28a745" strokeWidth={2} />
+                <Line
+                  type="monotone"
+                  dataKey="compliance_score"
+                  stroke="#28a745"
+                  strokeWidth={2}
+                />
               </LineChart>
             </ResponsiveContainer>
           </Card.Body>

@@ -1,20 +1,20 @@
 // src/components/Optimizer.jsx
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Card, Table, Spinner, Alert } from 'react-bootstrap';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Card, Table, Spinner, Alert } from "react-bootstrap";
 
 const Optimizer = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchOptimizerData = async () => {
       try {
-        const response = await axios.post('http://127.0.0.1:8000/optimizer');
+        const response = await axios.post("http://127.0.0.1:8010/optimizer");
         setRecommendations(response.data.recommendations);
       } catch (err) {
-        setError('Failed to fetch optimization data');
+        setError("Failed to fetch optimization data");
         console.error(err);
       } finally {
         setLoading(false);
@@ -42,7 +42,9 @@ const Optimizer = () => {
 
   return (
     <div style={styles.wrapper}>
-      <h2 style={styles.heading}>Cloud Resource Optimization Recommendations</h2>
+      <h2 style={styles.heading}>
+        Cloud Resource Optimization Recommendations
+      </h2>
 
       <Card style={styles.card}>
         <Card.Body>
@@ -73,19 +75,19 @@ const Optimizer = () => {
 
 const styles = {
   wrapper: {
-    padding: '30px 20px',
-    backgroundColor: '#f5f9ff',
-    minHeight: '100vh',
-    fontFamily: 'Arial, sans-serif',
-    textAlign: 'center',
+    padding: "30px 20px",
+    backgroundColor: "#f5f9ff",
+    minHeight: "100vh",
+    fontFamily: "Arial, sans-serif",
+    textAlign: "center",
   },
   heading: {
-    fontWeight: 'bold',
-    marginBottom: '30px',
+    fontWeight: "bold",
+    marginBottom: "30px",
   },
   card: {
-    marginTop: '20px',
-  }
+    marginTop: "20px",
+  },
 };
 
 export default Optimizer;

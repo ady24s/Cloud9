@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Alert } from 'react-bootstrap';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { Alert } from "react-bootstrap";
 
 const SpendHistory = () => {
   const [data, setData] = useState([]);
@@ -10,7 +18,7 @@ const SpendHistory = () => {
   useEffect(() => {
     const fetchSpendData = async () => {
       try {
-        const response = await axios.get('http://127.0.0.1:8000/spend-history');
+        const response = await axios.get("http://127.0.0.1:8010/spend-history");
         const months = response.data.months;
         const spend = response.data.spend;
 
@@ -26,14 +34,16 @@ const SpendHistory = () => {
           const lastMonthSpend = spend[spend.length - 2];
           const currentMonthSpend = spend[spend.length - 1];
 
-          const spike = ((currentMonthSpend - lastMonthSpend) / lastMonthSpend) * 100;
+          const spike =
+            ((currentMonthSpend - lastMonthSpend) / lastMonthSpend) * 100;
 
-          if (spike > 25) { // Spike greater than 25%
+          if (spike > 25) {
+            // Spike greater than 25%
             setAnomalyDetected(true);
           }
         }
       } catch (error) {
-        console.error('Error fetching spend history:', error);
+        console.error("Error fetching spend history:", error);
       }
     };
 
@@ -57,7 +67,12 @@ const SpendHistory = () => {
             <XAxis dataKey="month" />
             <YAxis />
             <Tooltip />
-            <Line type="monotone" dataKey="spend" stroke="#dc3545" strokeWidth={2} />
+            <Line
+              type="monotone"
+              dataKey="spend"
+              stroke="#dc3545"
+              strokeWidth={2}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -67,9 +82,9 @@ const SpendHistory = () => {
 
 const styles = {
   title: {
-    marginBottom: '15px',
-    fontWeight: 'bold',
-    color: '#333',
+    marginBottom: "15px",
+    fontWeight: "bold",
+    color: "#333",
   },
 };
 

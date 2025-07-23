@@ -23,7 +23,7 @@ const Dashboard = ({ provider }) => {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/metrics");
+        const response = await axios.get("http://127.0.0.1:8010/metrics");
         setMetrics(response.data);
       } catch (error) {
         console.error("Error fetching metrics:", error);

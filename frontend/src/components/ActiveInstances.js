@@ -10,7 +10,9 @@ const ActiveInstances = ({ provider }) => {
   useEffect(() => {
     const getInstances = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8000/instances?provider=${provider}`);
+        const response = await axios.get(
+          `http://127.0.0.1:8010/instances?provider=${provider}`
+        );
         setInstances(response.data.instances);
       } catch (err) {
         console.error("Error fetching instances:", err);
