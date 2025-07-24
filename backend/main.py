@@ -264,6 +264,7 @@ def generate_fake_resources(n=10):
             "disk_read": random.randint(0, 3000),
         })
     return resources
+
 def train_model():
     """
     Trains a KMeans model with fake data and saves it to disk.
@@ -286,7 +287,8 @@ def train_model():
 
     joblib.dump(kmeans, "kmeans_model.joblib")
     joblib.dump(scaler, "scaler.joblib")
-    print("✅ Model and Scaler trained and saved successfully.")
+    print("✅ Model and Scaler trained and saved successfully.") 
+    
 def normalize_and_extract_features(resources):
     """
     Extract and normalize features from resource metrics.
@@ -347,9 +349,9 @@ def startup_event():
         train_model()
 
 @app.post("/chat")
-def chat(message: ChatMessage):
-    """
-    Chat endpoint for handling messages
-    """
-    return {"response": "Message received: " + message.message}
+async def chat(message: ChatMessage):
+    try:
+        return {"response": f"Message received: {message.message}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 

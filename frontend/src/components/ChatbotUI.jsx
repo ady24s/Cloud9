@@ -19,8 +19,12 @@ const ChatbotUI = () => {
       const response = await fetch("http://127.0.0.1:8001/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ question: input }),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
       const botMessage = { text: data.response, sender: "bot" };
@@ -28,7 +32,10 @@ const ChatbotUI = () => {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { text: "⚠️ Failed to connect to chatbot.", sender: "bot" },
+        {
+          text: `⚠️ Failed to connect to chatbot: ${err.message}`,
+          sender: "bot",
+        },
       ]);
     } finally {
       setLoading(false);
