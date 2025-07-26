@@ -48,6 +48,7 @@ const ChatbotUI = () => {
 
   return (
     <div className="chatbot-container">
+      <h3>Ask Cloud9 !</h3>
       <div className="chat-window">
         {messages.map((msg, idx) => (
           <div key={idx} className={`chat-message ${msg.sender}`}>
