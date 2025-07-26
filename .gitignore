@@ -27,3 +27,5 @@ node_modules/
 
 # Frontend (not containerized right now)
 frontend/build/
+
+vmCloud_data.csv
