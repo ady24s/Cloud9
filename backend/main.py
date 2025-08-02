@@ -29,21 +29,23 @@ app.add_middleware(
 )
 
 # Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./cloud_resources.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://postgres:321root%40@127.0.0.1:5432/cloud_data"
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# SQLAlchemy Model
-class Resource(Base):
-    __tablename__ = "resources"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    resource_type = Column(String)
-    status = Column(String)
-    usage_hours = Column(Float)
+class CloudMetric(Base):
+    __tablename__ = "cloud_metrics"
 
-Base.metadata.create_all(bind=engine)
+    vm_id = Column(String, primary_key=True)
+    timestamp = Column(String)
+    cpu_usage = Column(Float)
+    memory_usage = Column(Float)
+    network_traffic = Column(Float)
+    power_consumption = Column(Float)
+    execution_time = Column(Float)
+    task_type = Column(String)
+
 
 # Dependency
 
@@ -79,38 +81,6 @@ class ChatMessage(BaseModel):
 def root():
     return {"message": "FastAPI backend is running!"}
 
-@app.get("/resources/")
-def get_resources(db: Session = Depends(get_db)):
-    return db.query(Resource).all()
-
-@app.post("/resources/")
-def create_resource(resource: ResourceBase, db: Session = Depends(get_db)):
-    new_resource = Resource(**resource.dict())
-    db.add(new_resource)
-    db.commit()
-    db.refresh(new_resource)
-    return new_resource
-
-@app.put("/resources/{resource_id}")
-def update_resource(resource_id: int, updated_resource: ResourceUpdate, db: Session = Depends(get_db)):
-    db_resource = db.query(Resource).filter(Resource.id == resource_id).first()
-    if not db_resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
-    for field, value in updated_resource.dict(exclude_unset=True).items():
-        setattr(db_resource, field, value)
-    db.commit()
-    db.refresh(db_resource)
-    return {"message": "Resource updated successfully", "resource": db_resource}
-
-@app.delete("/resources/{resource_id}")
-def delete_resource(resource_id: int, db: Session = Depends(get_db)):
-    db_resource = db.query(Resource).filter(Resource.id == resource_id).first()
-    if not db_resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
-    db.delete(db_resource)
-    db.commit()
-    return {"message": "Resource deleted successfully"}
-
 # ----------- Simulated Cloud APIs ------------
 
 instance_types = {
@@ -121,25 +91,19 @@ instance_types = {
 states = ["running", "stopped", "terminated"]
 
 @app.get("/instances")
-def get_instances(provider: str = Query("aws")):
+def get_instances(db: Session = Depends(get_db)):
+    data = db.query(CloudMetric).limit(100).all()  # Fetch some rows for demo
     instances = []
-    for _ in range(5):
-        launch_time = datetime.now() - timedelta(days=random.randint(0, 300))
+    for row in data:
         instances.append({
-            "id": f"{provider[:3]}-vm-{random.randint(1000, 9999)}",
-            "type": random.choice(instance_types.get(provider, ["t2.micro"])),
-            "state": random.choice(states),
-            "launch_time": launch_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "cpu_usage": round(random.uniform(1, 90), 2),
-            "memory_usage": round(random.uniform(1, 85), 2),
-            "uptime_hours": random.randint(10, 700),
-            "network_in": random.randint(10, 3000),
-            "disk_read": random.randint(10, 2000),
-            "public_ip": random.choice([True, False]),
-            "open_ports": random.sample([22, 80, 443, 3389], k=random.randint(0, 2))
+            "id": row.vm_id,
+            "type": random.choice(["t2.micro", "m5.large", "c5.xlarge"]),  
+            "state": random.choice(["running", "stopped", "terminated"]),            
+            "launch_time": row.timestamp,
         })
     return {"instances": instances}
 
+# simulated data
 @app.get("/storage")
 def get_storage(provider: str = Query("aws")):
     buckets = []
@@ -153,14 +117,28 @@ def get_storage(provider: str = Query("aws")):
     return {"buckets": buckets}
 
 @app.get("/metrics")
-def get_metrics():
-    return {
-        "totalSpend": random.randint(10000, 40000),
-        "idleResources": random.randint(1, 5),
-        "predictedSavings": random.randint(1000, 8000),
-        "anomalies": random.randint(0, 3)
-    }
+def get_metrics(db: Session = Depends(get_db)):
+    rows = db.query(CloudMetric).all()
 
+    total_resources = len(rows)
+    total_cpu = sum(r.cpu_usage for r in rows)
+    total_memory = sum(r.memory_usage for r in rows)
+
+    # Define idle resource as low CPU & Memory
+    idle_count = sum(1 for r in rows if r.cpu_usage < 10 and r.memory_usage < 10)
+
+    total_spend = round((total_cpu + total_memory) * 10, 2)  # Fake but real-derived
+    predicted_savings = round(idle_count * 100, 2)
+    anomalies = max(0, idle_count - 1)
+
+    return {
+        "totalSpend": total_spend,
+        "idleResources": idle_count,
+        "predictedSavings": predicted_savings,
+        "anomalies": anomalies
+    }
+ 
+# simulated data   
 @app.get("/spend-history")
 def get_spend_history():
     return {
@@ -171,24 +149,34 @@ def get_spend_history():
 # ----------- AI Idle Resource Detection ------------
 
 @app.get("/ai/idle-detection")
-def detect_idle_resources(provider: str = Query("aws")):
+def detect_idle_resources(db: Session = Depends(get_db)):
+    rows = db.query(CloudMetric).limit(200).all()
+
     resources = []
-    for _ in range(15):
+    for row in rows:
         resources.append({
-            "id": f"{provider[:3]}-res-{random.randint(1000, 9999)}",
-            "resource_type": random.choice(["VM", "Storage", "Database"]),
-            "cpu_usage": round(random.uniform(1, 90), 2),
-            "memory_usage": round(random.uniform(1, 90), 2),
-            "uptime": random.randint(10, 800),
-            "network_in": random.randint(10, 5000),
-            "disk_read": random.randint(5, 3000)
+            "id": row.vm_id,
+            "cpu_usage": row.cpu_usage,
+            "memory_usage": row.memory_usage,
+            "uptime": row.execution_time,
+            "network_in": row.network_traffic,
+            "disk_read": row.power_consumption,
+            "resource_type": "VM", 
+            "status": "Running" 
         })
+
     df = pd.DataFrame(resources)
     model = IsolationForest(contamination=0.15, random_state=42)
     df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
-    idle_resources = df[df["anomaly"] == -1].drop(columns=["anomaly"]).to_dict(orient="records")
-    return {"idle_resources": idle_resources}
+    
+    for i in range(len(resources)):
+        if df.loc[i, "anomaly"] == -1:
+            resources[i]["status"] = "Idle"
 
+    idle_resources = [res for res in resources if res["status"] == "Idle"]
+    return {"idle_resources": idle_resources}   
+
+# simulated data
 @app.get("/security")
 def get_security(provider: str = Query("aws")):
     """
@@ -236,6 +224,7 @@ def get_security(provider: str = Query("aws")):
         "recommendations": recommendations
     }
 
+# simulated data
 @app.get("/security/trend")
 def get_security_trend():
     """
@@ -250,44 +239,42 @@ def get_security_trend():
     trend.reverse()
     return trend
 
-
-def generate_fake_resources(n=10):
-    resources = []
-    for _ in range(n):
-        resource_id = f"res-{random.randint(1000, 9999)}"
-        resources.append({
-            "id": resource_id,
-            "cpu_usage": round(random.uniform(0, 90), 2),
-            "memory_usage": round(random.uniform(0, 90), 2),
-            "uptime": random.randint(0, 700),
-            "network_in": random.randint(0, 5000),
-            "disk_read": random.randint(0, 3000),
-        })
-    return resources
-
 def train_model():
     """
     Trains a KMeans model with fake data and saves it to disk.
     """
-    # Simulate training data
-    fake_data = np.array([
-        [5, 10, 100, 20, 50],    # underutilized
-        [8, 15, 150, 30, 60],
-        [50, 60, 300, 100, 200], # moderately utilized
-        [55, 65, 350, 120, 220],
-        [0, 0, 0, 5, 10],        # idle
-        [0, 0, 0, 2, 5],
-        [0, 0, 0, 3, 7],
-    ])
-    scaler = StandardScaler()
-    normalized_data = scaler.fit_transform(fake_data)
+    db = SessionLocal()
+    try:
+        rows = db.query(CloudMetric).limit(1000).all()
+        
+        resources = []
+        for row in rows:
+            resources.append([
+                row.cpu_usage,
+                row.memory_usage,
+                row.execution_time,
+                row.network_traffic,
+                row.power_consumption
+            ])   
+            
+        if len(resources) < 3:
+            print("Not enouh data to train ")
+            return
+          
+        features = np.array(resources)
+        
+        scaler = StandardScaler()
+        normalized_data = scaler.fit_transform(features)
+        
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        kmeans.fit(normalized_data)
 
-    kmeans = KMeans(n_clusters=3, random_state=42)
-    kmeans.fit(normalized_data)
-
-    joblib.dump(kmeans, "kmeans_model.joblib")
-    joblib.dump(scaler, "scaler.joblib")
-    print("✅ Model and Scaler trained and saved successfully.") 
+        joblib.dump(kmeans, "kmeans_model.joblib")
+        joblib.dump(scaler, "scaler.joblib")
+        print("✅ Model and Scaler trained and saved successfully.") 
+            
+    finally:
+        db.close()
     
 def normalize_and_extract_features(resources):
     """
@@ -337,8 +324,19 @@ def run_optimizer(resources):
         raise HTTPException(status_code=500, detail=f"Error in optimizer: {str(e)}")
 
 @app.post("/optimizer")
-def optimize_resources():
-    resources = generate_fake_resources(12)
+def optimize_resources(db: Session = Depends(get_db)):
+    rows = db.query(CloudMetric).limit(200).all()
+    resources = []
+    for row in rows:
+        resources.append({
+            "id": row.vm_id,
+            "cpu_usage": row.cpu_usage,
+            "memory_usage": row.memory_usage,
+            "uptime": row.execution_time,
+            "network_in": row.network_traffic,
+            "disk_read": row.power_consumption
+        })
+
     recommendations = run_optimizer(resources)
     return {"recommendations": recommendations}
 

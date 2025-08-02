@@ -31,26 +31,35 @@ const ActiveInstances = ({ provider }) => {
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
       {!loading && !error && instances.length > 0 && (
-        <Table striped bordered hover responsive>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>State</th>
-              <th>Launch Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {instances.map((instance) => (
-              <tr key={instance.id}>
-                <td>{instance.id}</td>
-                <td>{instance.type}</td>
-                <td>{instance.state}</td>
-                <td>{instance.launch_time}</td>
+        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+          <Table striped bordered hover responsive>
+            <thead
+              style={{
+                position: "sticky",
+                top: 0,
+                background: "#f8f9fa",
+                zIndex: 1,
+              }}
+            >
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>State</th>
+                <th>Launch Time</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {instances.map((instance) => (
+                <tr key={instance.id}>
+                  <td>{instance.id}</td>
+                  <td>{instance.type}</td>
+                  <td>{instance.state}</td>
+                  <td>{instance.launch_time}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
       )}
     </div>
   );
