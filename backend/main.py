@@ -15,6 +15,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import joblib
+from sklearn.model_selection import train_test_split
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -150,8 +151,7 @@ def get_spend_history():
 
 @app.get("/ai/idle-detection")
 def detect_idle_resources(db: Session = Depends(get_db)):
-    rows = db.query(CloudMetric).limit(200).all()
-
+    rows = load_test_data(db)  # Use only test set
     resources = []
     for row in rows:
         resources.append({
@@ -161,20 +161,21 @@ def detect_idle_resources(db: Session = Depends(get_db)):
             "uptime": row.execution_time,
             "network_in": row.network_traffic,
             "disk_read": row.power_consumption,
-            "resource_type": "VM", 
-            "status": "Running" 
+            "resource_type": "VM",
+            "status": "Running"
         })
 
     df = pd.DataFrame(resources)
-    model = IsolationForest(contamination=0.15, random_state=42)
-    df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
-    
-    for i in range(len(resources)):
-        if df.loc[i, "anomaly"] == -1:
-            resources[i]["status"] = "Idle"
+    if not df.empty:
+        model = IsolationForest(contamination=0.15, random_state=42)
+        df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
+
+        for i in range(len(resources)):
+            if df.loc[i, "anomaly"] == -1:
+                resources[i]["status"] = "Idle"
 
     idle_resources = [res for res in resources if res["status"] == "Idle"]
-    return {"idle_resources": idle_resources}   
+    return {"idle_resources": idle_resources}  
 
 # simulated data
 @app.get("/security")
@@ -240,13 +241,9 @@ def get_security_trend():
     return trend
 
 def train_model():
-    """
-    Trains a KMeans model with fake data and saves it to disk.
-    """
     db = SessionLocal()
     try:
-        rows = db.query(CloudMetric).limit(1000).all()
-        
+        rows = db.query(CloudMetric).all()
         resources = []
         for row in rows:
             resources.append([
@@ -255,26 +252,38 @@ def train_model():
                 row.execution_time,
                 row.network_traffic,
                 row.power_consumption
-            ])   
-            
+            ])
+
         if len(resources) < 3:
-            print("Not enouh data to train ")
+            print("Not enough data to train.")
             return
-          
+
         features = np.array(resources)
-        
+
+        # Split into train/test
+        X_train, X_test = train_test_split(features, test_size=0.2, random_state=42)
+
+        # Save test set to disk for later predictions
+        np.save("test_set.npy", X_test)
+
+        # Train model
         scaler = StandardScaler()
-        normalized_data = scaler.fit_transform(features)
-        
+        normalized_train = scaler.fit_transform(X_train)
         kmeans = KMeans(n_clusters=3, random_state=42)
-        kmeans.fit(normalized_data)
+        kmeans.fit(normalized_train)
 
         joblib.dump(kmeans, "kmeans_model.joblib")
         joblib.dump(scaler, "scaler.joblib")
-        print("✅ Model and Scaler trained and saved successfully.") 
-            
+        print("✅ Model and Scaler trained successfully on TRAIN set.")
     finally:
         db.close()
+        
+def load_test_data(db: Session):
+    """Load test set rows from DB based on saved test_set.npy."""
+    test_set = np.load("test_set.npy")
+    # Fetch matching rows from DB (simple approach: just random sample for demo)
+    all_rows = db.query(CloudMetric).all()
+    return random.sample(all_rows, min(len(test_set), len(all_rows)))
     
 def normalize_and_extract_features(resources):
     """
@@ -292,13 +301,9 @@ def normalize_and_extract_features(resources):
     return np.array(features)
 
 def run_optimizer(resources):
-    """
-    Predict clusters and generate optimization recommendations.
-    """
     try:
         kmeans = joblib.load("kmeans_model.joblib")
         scaler = joblib.load("scaler.joblib")
-
         features = normalize_and_extract_features(resources)
         normalized_features = scaler.transform(features)
         clusters = kmeans.predict(normalized_features)
@@ -307,25 +312,24 @@ def run_optimizer(resources):
         for i, resource in enumerate(resources):
             cluster_id = clusters[i]
             if cluster_id == 0:
-                recommendation = "Downsize instance type (e.g., m5.large → t3.medium)"
+                recommendation = "Downsize instance type"
             elif cluster_id == 1:
                 recommendation = "Switch to spot instances"
             else:
-                recommendation = "Archive idle S3 buckets to Glacier"
-
+                recommendation = "Archive idle storage"
             recommendations.append({
                 "resource_id": resource["id"],
                 "cluster_id": int(cluster_id),
                 "recommendation": recommendation
             })
-
         return recommendations
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in optimizer: {str(e)}")
 
+
 @app.post("/optimizer")
 def optimize_resources(db: Session = Depends(get_db)):
-    rows = db.query(CloudMetric).limit(200).all()
+    rows = load_test_data(db)
     resources = []
     for row in rows:
         resources.append({
@@ -343,7 +347,7 @@ def optimize_resources(db: Session = Depends(get_db)):
 @app.on_event("startup")
 def startup_event():
     # Train model automatically when server starts
-    if not (os.path.exists("kmeans_model.joblib") and os.path.exists("scaler.joblib")):
+    if not (os.path.exists("kmeans_model.joblib") and os.path.exists("scaler.joblib") and os.path.exists("test_set.npy")):
         train_model()
 
 @app.post("/chat")
