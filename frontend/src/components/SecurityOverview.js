@@ -11,7 +11,7 @@ const SecurityOverview = () => {
   useEffect(() => {
     const fetchSecurity = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/security");
+        const response = await axios.get("http://127.0.0.1:8010/security");
         setSecurityData(response.data);
       } catch (err) {
         setError("Failed to fetch security data");
@@ -32,19 +32,29 @@ const SecurityOverview = () => {
       {securityData && (
         <Card style={styles.card}>
           <Card.Body>
-            <Card.Title style={styles.cardTitle}>Current Security Posture</Card.Title>
-            
+            <Card.Title style={styles.cardTitle}>
+              Current Security Posture
+            </Card.Title>
+
             <ListGroup variant="flush">
               <ListGroup.Item>
                 <strong>Compliance Score:</strong>{" "}
-                <Badge bg={securityData.compliance_score >= 80 ? "success" : "danger"}>
+                <Badge
+                  bg={
+                    securityData.compliance_score >= 80 ? "success" : "danger"
+                  }
+                >
                   {securityData.compliance_score}%
                 </Badge>
               </ListGroup.Item>
 
               <ListGroup.Item>
                 <strong>Public Buckets:</strong>{" "}
-                {securityData.public_buckets ? <Badge bg="danger">Exposed</Badge> : <Badge bg="success">Secure</Badge>}
+                {securityData.public_buckets ? (
+                  <Badge bg="danger">Exposed</Badge>
+                ) : (
+                  <Badge bg="success">Secure</Badge>
+                )}
               </ListGroup.Item>
 
               <ListGroup.Item>
@@ -56,22 +66,38 @@ const SecurityOverview = () => {
 
               <ListGroup.Item>
                 <strong>IAM Misconfiguration:</strong>{" "}
-                {securityData.iam_misconfiguration ? <Badge bg="danger">Risk</Badge> : <Badge bg="success">Safe</Badge>}
+                {securityData.iam_misconfiguration ? (
+                  <Badge bg="danger">Risk</Badge>
+                ) : (
+                  <Badge bg="success">Safe</Badge>
+                )}
               </ListGroup.Item>
 
               <ListGroup.Item>
                 <strong>Encryption Missing:</strong>{" "}
-                {securityData.encryption_missing ? <Badge bg="danger">Missing</Badge> : <Badge bg="success">Enabled</Badge>}
+                {securityData.encryption_missing ? (
+                  <Badge bg="danger">Missing</Badge>
+                ) : (
+                  <Badge bg="success">Enabled</Badge>
+                )}
               </ListGroup.Item>
 
               <ListGroup.Item>
                 <strong>MFA Missing:</strong>{" "}
-                {securityData.mfa_missing ? <Badge bg="danger">Not Enforced</Badge> : <Badge bg="success">Enforced</Badge>}
+                {securityData.mfa_missing ? (
+                  <Badge bg="danger">Not Enforced</Badge>
+                ) : (
+                  <Badge bg="success">Enforced</Badge>
+                )}
               </ListGroup.Item>
 
               <ListGroup.Item>
                 <strong>Suspicious Logins:</strong>{" "}
-                {securityData.suspicious_login_detected ? <Badge bg="danger">Detected</Badge> : <Badge bg="success">None</Badge>}
+                {securityData.suspicious_login_detected ? (
+                  <Badge bg="danger">Detected</Badge>
+                ) : (
+                  <Badge bg="success">None</Badge>
+                )}
               </ListGroup.Item>
             </ListGroup>
 
@@ -85,7 +111,6 @@ const SecurityOverview = () => {
                 </li>
               ))}
             </ul>
-
           </Card.Body>
         </Card>
       )}

@@ -10,7 +10,9 @@ const S3Buckets = ({ provider }) => {
   useEffect(() => {
     const getBuckets = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8000/storage?provider=${provider}`);
+        const response = await axios.get(
+          `http://127.0.0.1:8010/storage?provider=${provider}`
+        );
         setBuckets(response.data.buckets);
       } catch (err) {
         console.error("Error fetching buckets:", err);
