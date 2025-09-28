@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { Table, Spinner, Alert } from "react-bootstrap";
+import api from "../api";
 
 const IdleResources = () => {
   const [idleResources, setIdleResources] = useState([]);
@@ -10,10 +10,8 @@ const IdleResources = () => {
   useEffect(() => {
     const fetchIdleResources = async () => {
       try {
-        const response = await axios.get(
-          "http://127.0.0.1:8010/ai/idle-detection"
-        );
-        setIdleResources(response.data.idle_resources);
+        const response = await api.get("/users/me/ai/idle-detection");
+        setIdleResources(response.data?.idle_resources || []);
       } catch (err) {
         setError("Failed to fetch idle resources");
       } finally {
@@ -29,9 +27,7 @@ const IdleResources = () => {
       <h5>💤 Detected Idle Resources</h5>
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
-      {!loading && !error && idleResources.length === 0 && (
-        <p>No idle resources found.</p>
-      )}
+      {!loading && !error && idleResources.length === 0 && <p>No idle resources found.</p>}
       {!loading && !error && idleResources.length > 0 && (
         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
           <Table striped bordered hover responsive>

@@ -1,7 +1,7 @@
 import React from 'react';
-import SpendHistory from './SpendHistory';
 import SpendOverview from './SpendOverview';
-import { Button, Row, Col, Card } from 'react-bootstrap';
+import SpendHistory from './SpendHistory';
+import { Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 
 const BudgetPage = ({ provider }) => {
@@ -9,31 +9,35 @@ const BudgetPage = ({ provider }) => {
 
   return (
     <div style={styles.pageWrapper}>
-      {/* Top Navigation */}
-      <div style={styles.navButtons}>
-        <Button variant="primary" onClick={() => navigate('/dashboard')}>Dashboard</Button>
-        <Button variant="secondary" onClick={() => navigate('/security')}>Security</Button>
-        <Button variant="secondary" onClick={() => navigate('/budget')}>Budget</Button>
+      <h2 style={styles.heading}>💰 Budget Monitoring</h2>
+
+      <div style={styles.navbar}>
+        <button style={styles.primaryButton} onClick={() => navigate('/dashboard')}>
+          Dashboard
+        </button>
+        <button style={styles.secondaryButton} onClick={() => navigate('/security')}>
+          Security
+        </button>
+        <button
+          style={{ ...styles.secondaryButton, backgroundColor: '#198754' }}
+          onClick={() => navigate('/budget')}
+        >
+          Budget
+        </button>
       </div>
 
-      <h2>Budget Monitoring</h2>
-
-      <Row style={{ marginTop: '20px' }}>
+      <Row style={styles.cardRow}>
         <Col md={6}>
-          <Card style={styles.card}>
-            <Card.Body>
-              <Card.Title>Spend Overview</Card.Title>
-              <SpendOverview />
-            </Card.Body>
-          </Card>
+          <div style={styles.card}>
+            <h4 style={styles.cardTitle}>💵 Spend Overview</h4>
+            <SpendOverview />
+          </div>
         </Col>
         <Col md={6}>
-          <Card style={styles.card}>
-            <Card.Body>
-              <Card.Title>Spend History</Card.Title>
-              <SpendHistory />
-            </Card.Body>
-          </Card>
+          <div style={styles.card}>
+            <h4 style={styles.cardTitle}>📊 Spend History</h4>
+            <SpendHistory />
+          </div>
         </Col>
       </Row>
     </div>
@@ -42,21 +46,64 @@ const BudgetPage = ({ provider }) => {
 
 const styles = {
   pageWrapper: {
-    padding: '30px',
-    backgroundColor: '#f5f9ff',
     minHeight: '100vh',
-    fontFamily: 'Arial, sans-serif',
+    padding: '30px 20px',
+    background: 'linear-gradient(135deg, #0b2137 0%, #1f4368 50%, #1b365d 100%)',
+    fontFamily: 'Inter, sans-serif',
+    color: 'white',
   },
-  navButtons: {
+  heading: {
+    textAlign: 'center',
+    fontSize: '32px',
+    fontWeight: '700',
+    color: '#8FD3F4',
     marginBottom: '20px',
+  },
+  navbar: {
     display: 'flex',
-    gap: '10px',
+    justifyContent: 'center',
+    gap: '20px',
+    marginBottom: '40px',
   },
+  primaryButton: {
+    backgroundColor: '#0d6efd',
+    border: 'none',
+    padding: '10px 20px',
+    fontSize: '16px',
+    fontWeight: '600',
+    color: 'white',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+    transition: 'transform 0.2s',
+  },
+  secondaryButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    padding: '10px 20px',
+    fontSize: '16px',
+    fontWeight: '500',
+    color: 'white',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+    transition: 'transform 0.2s, background-color 0.2s',
+  },
+  cardRow: { justifyContent: 'center', gap: '20px' },
   card: {
+    background: 'rgba(255,255,255,0.05)',
+    backdropFilter: 'blur(15px)',
+    borderRadius: '20px',
+    padding: '25px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    transition: 'transform 0.3s, box-shadow 0.3s',
+  },
+  cardTitle: {
+    fontSize: '22px',
+    fontWeight: '600',
+    color: '#8FD3F4',
+    textAlign: 'center',
     marginBottom: '20px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    backgroundColor: '#ffffff',
   },
 };
 

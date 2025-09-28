@@ -1,68 +1,42 @@
+// src/components/ChatbotUI.jsx
 import React, { useState } from "react";
-import "./ChatbotUI.css";
+import axios from "../api";
 
 const ChatbotUI = () => {
-  const [messages, setMessages] = useState([
-    { text: "Hi! I can help with your cloud insights.", sender: "bot" },
-  ]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
-    const userMessage = { text: input, sender: "user" };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setLoading(true);
+    const userMsg = { sender: "user", text: input };
+    setMessages((prev) => [...prev, userMsg]);
 
     try {
-      const response = await fetch("http://127.0.0.1:8001/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: input }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const botMessage = { text: data.response, sender: "bot" };
-      setMessages((prev) => [...prev, botMessage]);
+      const res = await axios.post("/chat", { question: input });
+      const botMsg = { sender: "bot", text: res.data.response };
+      setMessages((prev) => [...prev, botMsg]);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: `⚠️ Failed to connect to chatbot: ${err.message}`,
-          sender: "bot",
-        },
-      ]);
+      console.error("Chat error:", err);
     } finally {
-      setLoading(false);
+      setInput("");
     }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") sendMessage();
   };
 
   return (
     <div className="chatbot-container">
-      <h3>Ask Cloud9 !</h3>
       <div className="chat-window">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`chat-message ${msg.sender}`}>
-            {msg.text}
+        {messages.map((m, idx) => (
+          <div key={idx} className={`message ${m.sender}`}>
+            {m.text}
           </div>
         ))}
-        {loading && <div className="chat-message bot">Typing...</div>}
       </div>
       <div className="chat-input">
         <input
+          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Ask about cloud usage or security..."
+          placeholder="Ask me anything..."
         />
         <button onClick={sendMessage}>Send</button>
       </div>

@@ -1,6 +1,8 @@
+// src/components/ActiveInstances.js
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axios from "../api";
 import { Table, Spinner, Alert } from "react-bootstrap";
+
 
 const ActiveInstances = ({ provider }) => {
   const [instances, setInstances] = useState([]);
@@ -8,60 +10,50 @@ const ActiveInstances = ({ provider }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const getInstances = async () => {
+    const fetchInstances = async () => {
       try {
-        const response = await axios.get(
-          `http://127.0.0.1:8010/instances?provider=${provider}`
-        );
-        setInstances(response.data.instances);
+        setLoading(true);
+        const res = await axios.get("/instances", {
+          params: { provider },
+        });
+        setInstances(res.data.instances || []);
       } catch (err) {
         console.error("Error fetching instances:", err);
-        setError("Failed to fetch instances");
+        setError("Failed to load instances.");
       } finally {
         setLoading(false);
       }
     };
 
-    getInstances();
+    if (provider) fetchInstances();
   }, [provider]);
 
+  if (loading) return <Spinner animation="border" />;
+  if (error) return <Alert variant="danger">{error}</Alert>;
+  if (instances.length === 0)
+    return <Alert variant="info">No active instances found.</Alert>;
+
   return (
-    <div>
-      <h5>💻 Active Instances</h5>
-      {loading && <Spinner animation="border" />}
-      {error && <Alert variant="danger">{error}</Alert>}
-      {!loading && !error && instances.length > 0 && (
-        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-          <Table striped bordered hover responsive>
-            <thead
-              style={{
-                position: "sticky",
-                top: 0,
-                background: "#f8f9fa",
-                zIndex: 1,
-              }}
-            >
-              <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>State</th>
-                <th>Launch Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {instances.map((instance) => (
-                <tr key={instance.id}>
-                  <td>{instance.id}</td>
-                  <td>{instance.type}</td>
-                  <td>{instance.state}</td>
-                  <td>{instance.launch_time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      )}
-    </div>
+    <Table striped bordered hover>
+      <thead>
+        <tr>
+          <th>Instance ID</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Launch Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {instances.map((inst) => (
+          <tr key={inst.id}>
+            <td>{inst.id}</td>
+            <td>{inst.type}</td>
+            <td>{inst.state}</td>
+            <td>{inst.launch_time}</td>
+          </tr>
+        ))}
+      </tbody>
+    </Table>
   );
 };
 

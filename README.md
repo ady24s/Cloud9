@@ -35,3 +35,12 @@ Cloud9 is an AI-driven cloud resource monitoring dashboard designed for startups
 ```bash
 git clone https://github.com/ady24s/cloud9.git
 cd cloud9
+
+
+
+
+If you change backend code → auto reloads.
+
+If you change frontend code → React hot reloads in browser.
+
+If you change dependencies → just run docker compose build backend or docker compose exec frontend npm install.

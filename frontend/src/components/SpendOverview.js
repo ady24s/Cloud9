@@ -1,12 +1,6 @@
 import React from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 const SpendOverview = () => {
@@ -29,12 +23,7 @@ const SpendOverview = () => {
             <XAxis dataKey="month" />
             <YAxis />
             <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="spend"
-              stroke="#007bff"
-              strokeWidth={2}
-            />
+            <Line type="monotone" dataKey="spend" stroke="#007bff" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -43,11 +32,7 @@ const SpendOverview = () => {
 };
 
 const styles = {
-  title: {
-    marginBottom: "15px",
-    fontWeight: "bold",
-    color: "#333",
-  },
+  title: { marginBottom: "15px", fontWeight: "bold", color: "#333" },
 };
 
 export default SpendOverview;

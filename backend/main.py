@@ -1,54 +1,42 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
-from sqlalchemy import create_engine, Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import pandas as pd
-import numpy as np
-import os
-import random
-from datetime import datetime, timedelta
-from sklearn.ensemble import IsolationForest
-from sklearn.linear_model import LinearRegression
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-import joblib
-from sklearn.model_selection import train_test_split
+from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import List, Optional
+import os, numpy as np, pandas as pd, joblib
+from apscheduler.schedulers.background import BackgroundScheduler
 
-# Initialize FastAPI app
-app = FastAPI()
+from backend.database import SessionLocal, engine
+from backend.models import Base, CloudMetric
+from backend import schemas
+from backend.auth_deps import get_current_user_id
+from backend.auth_router import router as auth_router
+from backend.credentials_router import router as cred_router
+from backend.cloud_ingestors import ingest_aws, ingest_gcp, ingest_azure
 
-# CORS config
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "super-secret-session-key")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+app = FastAPI(title="Cloud9 SaaS Backend")
+
+# Session (Authlib needs this)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY, session_cookie="cloud9_session")
+
+# CORS – restrict to your frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[FRONTEND_BASE_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Database setup
-SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://postgres:321root%40@127.0.0.1:5432/cloud_data"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class CloudMetric(Base):
-    __tablename__ = "cloud_metrics"
-
-    vm_id = Column(String, primary_key=True)
-    timestamp = Column(String)
-    cpu_usage = Column(Float)
-    memory_usage = Column(Float)
-    network_traffic = Column(Float)
-    power_consumption = Column(Float)
-    execution_time = Column(Float)
-    task_type = Column(String)
-
-
-# Dependency
+# Routers
+app.include_router(auth_router)
+app.include_router(cred_router)
 
 def get_db():
     db = SessionLocal()
@@ -57,303 +45,238 @@ def get_db():
     finally:
         db.close()
 
-# Pydantic Models
-class ResourceBase(BaseModel):
-    name: str
-    resource_type: str
-    status: str
-    usage_hours: float
+@app.get("/api")
+def api_root():
+    return {"message": "Cloud9 SaaS backend is running", "docs": "/docs", "status": "ok"}
 
-    class Config:
-        orm_mode = True
+# ---------------------- Metrics Ingestion ----------------------
+@app.post("/metrics/ingest", response_model=int)
+def ingest_metric(payload: schemas.MetricIn, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    row = CloudMetric(**payload.dict(), user_id=user_id)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row.id
 
-class ResourceUpdate(BaseModel):
-    name: str | None = None
-    resource_type: str | None = None
-    status: str | None = None
-    usage_hours: float | None = None
-    
-class ChatMessage(BaseModel):
-    message: str
+@app.post("/metrics/ingest/batch", response_model=int)
+def ingest_metric_batch(batch: schemas.MetricBatchIn, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = [CloudMetric(**item.dict(), user_id=user_id) for item in batch.items]
+    db.bulk_save_objects(rows)
+    db.commit()
+    return len(rows)
 
-# ----------- Core APIs ------------
+# ---------------------- User Metrics & Insights ----------------------
+@app.get("/users/me/metrics", response_model=List[schemas.MetricOut])
+def my_metrics(limit: int = Query(200, ge=1, le=5000), db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    return db.query(CloudMetric).filter(CloudMetric.user_id == user_id).order_by(CloudMetric.id.desc()).limit(limit).all()
 
-@app.get("/")
-def root():
-    return {"message": "FastAPI backend is running!"}
+@app.get("/users/me/insights", response_model=schemas.InsightOut)
+def my_insights(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = db.query(CloudMetric).filter(CloudMetric.user_id == user_id).all()
+    if not rows:
+        return schemas.InsightOut(total_spend=0.0, idle_resources=0, predicted_savings=0.0, anomalies=0, avg_cpu=0.0, avg_memory=0.0, resources_observed=0)
+    total_cpu = sum(r.cpu_usage or 0 for r in rows)
+    total_mem = sum(r.memory_usage or 0 for r in rows)
+    n = len(rows)
+    idle = sum(1 for r in rows if (r.cpu_usage or 0) < 10 and (r.memory_usage or 0) < 10)
+    return schemas.InsightOut(
+        total_spend=round((total_cpu + total_mem) * 10, 2),
+        idle_resources=idle,
+        predicted_savings=round(idle * 100, 2),
+        anomalies=max(0, idle - 1),
+        avg_cpu=round(total_cpu / n, 2),
+        avg_memory=round(total_mem / n, 2),
+        resources_observed=n,
+    )
 
-# ----------- Simulated Cloud APIs ------------
+@app.get("/users/me/spend-series", response_model=schemas.SpendSeries)
+def my_spend_series(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = db.query(CloudMetric).filter(CloudMetric.user_id == user_id).all()
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    buckets = {}
+    for r in rows:
+        try:
+            ts = datetime.fromisoformat(r.timestamp.replace("Z", "")) if r.timestamp else datetime.utcnow()
+        except:
+            ts = datetime.utcnow()
+        if ts >= cutoff:
+            key = ts.strftime("%Y-%m-%d")
+            buckets[key] = buckets.get(key, 0.0) + ((r.cpu_usage or 0) + (r.memory_usage or 0)) * 10.0
+    pts = [schemas.SpendPoint(date=k, spend=round(v, 2)) for k, v in sorted(buckets.items())]
+    return schemas.SpendSeries(points=pts)
 
-instance_types = {
-    'aws': ["t2.micro", "m5.large", "c5.xlarge"],
-    'gcp': ["n1-standard-1", "e2-medium", "n2-standard-2"],
-    'azure': ["Standard_B1s", "Standard_D2s_v3", "Standard_F4s_v2"]
-}
-states = ["running", "stopped", "terminated"]
-
+# ---------------------- New Endpoints to Match Frontend ----------------------
 @app.get("/instances")
-def get_instances(db: Session = Depends(get_db)):
-    data = db.query(CloudMetric).limit(100).all()  # Fetch some rows for demo
-    instances = []
-    for row in data:
-        instances.append({
-            "id": row.vm_id,
-            "type": random.choice(["t2.micro", "m5.large", "c5.xlarge"]),  
-            "state": random.choice(["running", "stopped", "terminated"]),            
-            "launch_time": row.timestamp,
-        })
-    return {"instances": instances}
+def list_instances(provider: str, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = db.query(CloudMetric).filter(CloudMetric.user_id == user_id, CloudMetric.provider == provider).order_by(CloudMetric.id.desc()).limit(50).all()
+    instances = [{"id": r.vm_id, "type": r.task_type or "unknown", "state": "running", "launch_time": r.timestamp} for r in rows]
+    return {"status": "success", "instances": instances}
 
-# simulated data
 @app.get("/storage")
-def get_storage(provider: str = Query("aws")):
-    buckets = []
-    for _ in range(3):
-        creation_date = datetime.now() - timedelta(days=random.randint(30, 900))
-        buckets.append({
-            "name": f"{provider[:3]}-storage-{random.randint(1000,9999)}",
-            "creation_date": creation_date.strftime("%Y-%m-%d"),
-            "public_access": random.choice([True, False])
-        })
-    return {"buckets": buckets}
+def list_storage(provider: str):
+    # Mock response - later connect to real cloud storage APIs
+    mock_buckets = [{"name": "project-data", "creation_date": "2025-09-01", "public_access": False},
+                    {"name": "logs-archive", "creation_date": "2025-08-12", "public_access": True}]
+    return {"status": "success", "buckets": mock_buckets}
 
-@app.get("/metrics")
-def get_metrics(db: Session = Depends(get_db)):
-    rows = db.query(CloudMetric).all()
-
-    total_resources = len(rows)
-    total_cpu = sum(r.cpu_usage for r in rows)
-    total_memory = sum(r.memory_usage for r in rows)
-
-    # Define idle resource as low CPU & Memory
-    idle_count = sum(1 for r in rows if r.cpu_usage < 10 and r.memory_usage < 10)
-
-    total_spend = round((total_cpu + total_memory) * 10, 2)  # Fake but real-derived
-    predicted_savings = round(idle_count * 100, 2)
-    anomalies = max(0, idle_count - 1)
-
-    return {
-        "totalSpend": total_spend,
-        "idleResources": idle_count,
-        "predictedSavings": predicted_savings,
-        "anomalies": anomalies
+@app.get("/users/me/security")
+def security_overview():
+    # Mock security posture
+    data = {
+        "compliance_score": 85,
+        "public_buckets": True,
+        "open_ports": ["22", "80"],
+        "iam_misconfiguration": False,
+        "encryption_missing": False,
+        "mfa_missing": True,
+        "suspicious_login_detected": False,
+        "recommendations": [
+            "Enable MFA for all users",
+            "Restrict public S3 bucket access",
+        ],
     }
- 
-# simulated data   
-@app.get("/spend-history")
-def get_spend_history():
-    return {
-        "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        "spend": [random.randint(1800, 3000) for _ in range(6)]
-    }
+    return {"status": "success", **data}
 
-# ----------- AI Idle Resource Detection ------------
+@app.get("/users/me/security/trend")
+def security_trend():
+    today = datetime.utcnow().date()
+    points = [{"date": (today - timedelta(days=i)).isoformat(), "compliance_score": 80 + (i % 5)} for i in range(7)]
+    return {"status": "success", "trend": points}
 
-@app.get("/ai/idle-detection")
-def detect_idle_resources(db: Session = Depends(get_db)):
-    rows = load_test_data(db)  # Use only test set
-    resources = []
-    for row in rows:
-        resources.append({
-            "id": row.vm_id,
-            "cpu_usage": row.cpu_usage,
-            "memory_usage": row.memory_usage,
-            "uptime": row.execution_time,
-            "network_in": row.network_traffic,
-            "disk_read": row.power_consumption,
-            "resource_type": "VM",
-            "status": "Running"
-        })
-
-    df = pd.DataFrame(resources)
-    if not df.empty:
-        model = IsolationForest(contamination=0.15, random_state=42)
-        df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
-
-        for i in range(len(resources)):
-            if df.loc[i, "anomaly"] == -1:
-                resources[i]["status"] = "Idle"
-
-    idle_resources = [res for res in resources if res["status"] == "Idle"]
-    return {"idle_resources": idle_resources}  
-
-# simulated data
-@app.get("/security")
-def get_security(provider: str = Query("aws")):
-    """
-    Simulate cybersecurity findings for Cloud9 Dashboard.
-    """
-    public_bucket_risk = random.choices([True, False], weights=[25, 75])[0]
-    open_ports = random.sample([22, 3389, 80, 443], k=random.randint(0, 2))
-    iam_misconfig = random.choices([True, False], weights=[20, 80])[0]
-    encryption_missing = random.choices([True, False], weights=[15, 85])[0]
-    mfa_missing = random.choices([True, False], weights=[10, 90])[0]
-    suspicious_login = random.choices([True, False], weights=[10, 90])[0]
-
-    compliance_score = random.randint(75, 99)
-    if public_bucket_risk or open_ports or iam_misconfig:
-        compliance_score -= random.randint(5, 15)
-    if encryption_missing or mfa_missing:
-        compliance_score -= random.randint(3, 10)
-    compliance_score = max(50, compliance_score)
-
-    recommendations = []
-    if public_bucket_risk:
-        recommendations.append("Restrict public access to storage buckets.")
-    if open_ports:
-        recommendations.append("Close unnecessary ports (22/3389/80).")
-    if iam_misconfig:
-        recommendations.append("Review IAM policies and apply least privilege.")
-    if encryption_missing:
-        recommendations.append("Enable encryption on storage services.")
-    if mfa_missing:
-        recommendations.append("Enforce MFA for all users.")
-    if suspicious_login:
-        recommendations.append("Investigate suspicious login attempts immediately.")
-    if not recommendations:
-        recommendations.append("No critical issues detected.")
-
-    return {
-        "issues_found": len(recommendations),
-        "public_buckets": int(public_bucket_risk),
-        "open_ports": open_ports,
-        "iam_misconfiguration": bool(iam_misconfig),
-        "encryption_missing": bool(encryption_missing),
-        "mfa_missing": bool(mfa_missing),
-        "suspicious_login_detected": bool(suspicious_login),
-        "compliance_score": compliance_score,
-        "recommendations": recommendations
-    }
-
-# simulated data
-@app.get("/security/trend")
-def get_security_trend():
-    """
-    Simulate 7 days of compliance score trend.
-    """
-    today = datetime.now()
-    trend = []
-    for i in range(7):
-        day = (today - timedelta(days=i)).strftime("%Y-%m-%d")
-        score = random.randint(75, 95)
-        trend.append({"date": day, "compliance_score": score})
-    trend.reverse()
-    return trend
-
-def train_model():
-    db = SessionLocal()
-    try:
-        rows = db.query(CloudMetric).all()
-        resources = []
-        for row in rows:
-            resources.append([
-                row.cpu_usage,
-                row.memory_usage,
-                row.execution_time,
-                row.network_traffic,
-                row.power_consumption
-            ])
-
-        if len(resources) < 3:
-            print("Not enough data to train.")
-            return
-
-        features = np.array(resources)
-
-        # Split into train/test
-        X_train, X_test = train_test_split(features, test_size=0.2, random_state=42)
-
-        # Save test set to disk for later predictions
-        np.save("test_set.npy", X_test)
-
-        # Train model
-        scaler = StandardScaler()
-        normalized_train = scaler.fit_transform(X_train)
-        kmeans = KMeans(n_clusters=3, random_state=42)
-        kmeans.fit(normalized_train)
-
-        joblib.dump(kmeans, "kmeans_model.joblib")
-        joblib.dump(scaler, "scaler.joblib")
-        print("✅ Model and Scaler trained successfully on TRAIN set.")
-    finally:
-        db.close()
-        
-def load_test_data(db: Session):
-    """Load test set rows from DB based on saved test_set.npy."""
-    test_set = np.load("test_set.npy")
-    # Fetch matching rows from DB (simple approach: just random sample for demo)
-    all_rows = db.query(CloudMetric).all()
-    return random.sample(all_rows, min(len(test_set), len(all_rows)))
-    
-def normalize_and_extract_features(resources):
-    """
-    Extract and normalize features from resource metrics.
-    """
-    features = []
-    for resource in resources:
-        features.append([
-            resource.get("cpu_usage", 0),
-            resource.get("memory_usage", 0),
-            resource.get("uptime", 0),
-            resource.get("network_in", 0),
-            resource.get("disk_read", 0),
-        ])
-    return np.array(features)
-
-def run_optimizer(resources):
-    try:
-        kmeans = joblib.load("kmeans_model.joblib")
-        scaler = joblib.load("scaler.joblib")
-        features = normalize_and_extract_features(resources)
-        normalized_features = scaler.transform(features)
-        clusters = kmeans.predict(normalized_features)
-
-        recommendations = []
-        for i, resource in enumerate(resources):
-            cluster_id = clusters[i]
-            if cluster_id == 0:
-                recommendation = "Downsize instance type"
-            elif cluster_id == 1:
-                recommendation = "Switch to spot instances"
-            else:
-                recommendation = "Archive idle storage"
-            recommendations.append({
-                "resource_id": resource["id"],
-                "cluster_id": int(cluster_id),
-                "recommendation": recommendation
-            })
-        return recommendations
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in optimizer: {str(e)}")
-
-
-@app.post("/optimizer")
-def optimize_resources(db: Session = Depends(get_db)):
-    rows = load_test_data(db)
-    resources = []
-    for row in rows:
-        resources.append({
-            "id": row.vm_id,
-            "cpu_usage": row.cpu_usage,
-            "memory_usage": row.memory_usage,
-            "uptime": row.execution_time,
-            "network_in": row.network_traffic,
-            "disk_read": row.power_consumption
-        })
-
-    recommendations = run_optimizer(resources)
-    return {"recommendations": recommendations}
-
-@app.on_event("startup")
-def startup_event():
-    # Train model automatically when server starts
-    if not (os.path.exists("kmeans_model.joblib") and os.path.exists("scaler.joblib") and os.path.exists("test_set.npy")):
-        train_model()
+@app.get("/resources/idle")
+def resources_idle(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = db.query(CloudMetric).filter(CloudMetric.user_id == user_id).order_by(CloudMetric.id.desc()).limit(50).all()
+    idle = [{"id": r.vm_id, "type": r.task_type, "state": "running" if (r.cpu_usage or 0) > 5 else "idle",
+             "launch_time": r.timestamp, "estimated_cost": round(((r.cpu_usage or 0) + (r.memory_usage or 0)) * 0.1, 2)}
+            for r in rows]
+    return {"status": "success", "idle_resources": idle}
 
 @app.post("/chat")
-async def chat(message: ChatMessage):
-    try:
-        return {"response": f"Message received: {message.message}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def chat_bot(req: Request):
+    body = await req.json()
+    question = body.get("question", "")
+    answer = f"🤖 (Mock) You asked: '{question}'. Here is a placeholder response."
+    return {"status": "success", "response": answer}
 
+# ---------------------- AI & Optimizer (unchanged) ----------------------
+@app.get("/users/me/ai/idle-detection")
+def detect_idle(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = _load_eval_rows(db, user_id)
+    if not rows:
+        return {"idle_resources": []}
+    resources = [{"id": r.vm_id, "resource_type": r.task_type or "vm", "cpu_usage": r.cpu_usage or 0.0,
+                  "memory_usage": r.memory_usage or 0.0, "uptime": r.execution_time or 0.0,
+                  "network_in": r.network_traffic or 0.0, "disk_read": r.power_consumption or 0.0,
+                  "status": "Running"} for r in rows]
+    df = pd.DataFrame(resources)
+    from sklearn.ensemble import IsolationForest
+    model = IsolationForest(contamination=0.15, random_state=42)
+    df["anomaly"] = model.fit_predict(df[["cpu_usage", "memory_usage", "uptime", "network_in", "disk_read"]])
+    for i in range(len(resources)):
+        if df.loc[i, "anomaly"] == -1:
+            resources[i]["status"] = "Idle"
+    return {"status": "success", "idle_resources": [r for r in resources if r["status"] == "Idle"]}
+
+@app.post("/users/me/optimizer", response_model=schemas.OptimizerResponse)
+def optimize(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    rows = _load_eval_rows(db, user_id)
+    if not rows:
+        return schemas.OptimizerResponse(recommendations=[])
+    feats = np.array([[r.cpu_usage or 0.0, r.memory_usage or 0.0, r.execution_time or 0.0, r.network_traffic or 0.0, r.power_consumption or 0.0] for r in rows])
+    kmeans, scaler = _get_or_train_user_model(db, user_id)
+    Xn = scaler.transform(feats)
+    clusters = kmeans.predict(Xn)
+    recs = []
+    for i, r in enumerate(rows):
+        cid = int(clusters[i])
+        msg = "Downsize instance type" if cid == 0 else "Switch to spot instances" if cid == 1 else "Archive idle storage"
+        recs.append(schemas.OptimizerRecommendation(resource_id=r.vm_id or f"res-{r.id}", cluster_id=cid, recommendation=msg))
+    return schemas.OptimizerResponse(recommendations=recs)
+
+# ---------------------- ML Helpers ----------------------
+def _user_dir(user_id: int):
+    d = os.path.join("models", f"user_{user_id}")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def _artifacts_exist(user_id: int):
+    d = _user_dir(user_id)
+    return all(os.path.exists(os.path.join(d, f)) for f in ["kmeans.joblib", "scaler.joblib"])
+
+def _save_artifacts(user_id: int, kmeans, scaler):
+    d = _user_dir(user_id)
+    joblib.dump(kmeans, os.path.join(d, "kmeans.joblib"))
+    joblib.dump(scaler, os.path.join(d, "scaler.joblib"))
+
+def _load_artifacts(user_id: int):
+    d = _user_dir(user_id)
+    return joblib.load(os.path.join(d, "kmeans.joblib")), joblib.load(os.path.join(d, "scaler.joblib"))
+
+def _get_or_train_user_model(db: Session, user_id: int):
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+    if _artifacts_exist(user_id):
+        return _load_artifacts(user_id)
+    rows = db.query(CloudMetric).filter(CloudMetric.user_id == user_id).all()
+    feats = np.array([[r.cpu_usage or 0.0, r.memory_usage or 0.0, r.execution_time or 0.0, r.network_traffic or 0.0, r.power_consumption or 0.0] for r in rows]) or np.zeros((3, 5))
+    scaler = StandardScaler().fit(feats)
+    kmeans = KMeans(n_clusters=min(3, max(1, len(feats))), random_state=42).fit(scaler.transform(feats))
+    _save_artifacts(user_id, kmeans, scaler)
+    return kmeans, scaler
+
+def _load_eval_rows(db: Session, user_id: int):
+    return db.query(CloudMetric).filter(CloudMetric.user_id == user_id).order_by(CloudMetric.id.desc()).limit(200).all()
+
+# ---------------------- Background Scheduler ----------------------
+scheduler: Optional[BackgroundScheduler] = None
+
+def _ingest_for_all_users():
+    with SessionLocal() as db:
+        user_ids = [uid for (uid,) in db.query(CloudMetric.user_id).distinct().all() if uid]
+        cred_user_ids = [
+    row[0]
+    for row in db.execute(
+        text("SELECT DISTINCT user_id FROM cloud_credentials WHERE user_id IS NOT NULL")
+    )
+]
+
+        for uid in set(user_ids) | set(cred_user_ids):
+            try:
+                added = 0
+                added += ingest_aws(db, uid)
+                added += ingest_gcp(db, uid)
+                added += ingest_azure(db, uid)
+                if added:
+                    _get_or_train_user_model(db, uid)
+            except Exception as e:
+                print(f"[ingest] user {uid} error: {e}")
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+    global scheduler
+    scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+    scheduler.add_job(_ingest_for_all_users, "interval", minutes=10, id="ingest", max_instances=1, coalesce=True)
+    scheduler.start()
+    print("⏱️ Multi-cloud ingestion running every 10 minutes.")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    global scheduler
+    if scheduler:
+        scheduler.shutdown(wait=False)
+    print("🛑 Scheduler shut down.")
+
+# ---------------------- Serve React Frontend ----------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend_build")
+FRONTEND_DIR = os.path.abspath(FRONTEND_DIR)
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+
+    @app.get("/{full_path:path}")
+    async def serve_react_app(full_path: str):
+        index_file = os.path.join(FRONTEND_DIR, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"error": "Frontend build not found"}
