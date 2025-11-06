@@ -1,3 +1,4 @@
+// App.js
 import React, { useMemo, useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import LoginPage from "./components/LoginPage.jsx";
@@ -8,20 +9,21 @@ import AuthSuccess from "./components/AuthSuccess";
 import ChooseCloudPage from "./components/ChooseCloudPage";
 
 const Protected = ({ children }) => {
-  const token = localStorage.getItem("access_token");
+  const token = localStorage.getItem("cloud9_token");
   const location = useLocation();
   if (!token) return <Navigate to="/" replace state={{ from: location }} />;
   return children;
 };
 
 export default function App() {
-  const [provider, setProvider] = useState(() => {
-    return localStorage.getItem("cloud_provider") || "aws";
+  const [currentProvider, setCurrentProvider] = useState(() => {
+    return localStorage.getItem("current_provider") || "aws";
   });
 
+  // Save provider to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("cloud_provider", provider);
-  }, [provider]);
+    localStorage.setItem("current_provider", currentProvider);
+  }, [currentProvider]);
 
   useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8000", []);
 
@@ -29,13 +31,19 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthSuccess />} />
-      <Route path="/choose-cloud" element={<ChooseCloudPage setProvider={setProvider} />} />
+      <Route 
+        path="/choose-cloud" 
+        element={<ChooseCloudPage setCurrentProvider={setCurrentProvider} />} 
+      />
 
       <Route
         path="/dashboard"
         element={
           <Protected>
-            <Dashboard provider={provider} />
+            <Dashboard 
+              provider={currentProvider} 
+              setProvider={setCurrentProvider}
+            />
           </Protected>
         }
       />
@@ -43,7 +51,7 @@ export default function App() {
         path="/budget"
         element={
           <Protected>
-            <BudgetPage provider={provider} />
+            <BudgetPage provider={currentProvider} />
           </Protected>
         }
       />
@@ -51,7 +59,7 @@ export default function App() {
         path="/security"
         element={
           <Protected>
-            <SecurityPage provider={provider} />
+            <SecurityPage provider={currentProvider} />
           </Protected>
         }
       />

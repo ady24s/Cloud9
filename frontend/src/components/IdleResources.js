@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Table, Spinner, Alert } from "react-bootstrap";
 import api from "../api";
 
-const IdleResources = () => {
+const IdleResources = ({ provider }) => {
   const [idleResources, setIdleResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -10,7 +10,9 @@ const IdleResources = () => {
   useEffect(() => {
     const fetchIdleResources = async () => {
       try {
-        const response = await api.get("/users/me/ai/idle-detection");
+        const response = await api.get("/users/me/ai/idle-detection", {
+          params: { provider } // ✅ Added provider param
+        });
         setIdleResources(response.data?.idle_resources || []);
       } catch (err) {
         setError("Failed to fetch idle resources");
@@ -20,25 +22,20 @@ const IdleResources = () => {
     };
 
     fetchIdleResources();
-  }, []);
+  }, [provider]); // ✅ Added provider dependency
 
   return (
     <div>
-      <h5>💤 Detected Idle Resources</h5>
+      <h5>💤 Detected Idle Resources - {provider.toUpperCase()}</h5>
       {loading && <Spinner animation="border" />}
       {error && <Alert variant="danger">{error}</Alert>}
-      {!loading && !error && idleResources.length === 0 && <p>No idle resources found.</p>}
+      {!loading && !error && idleResources.length === 0 && (
+        <p>No idle resources found for {provider}.</p>
+      )}
       {!loading && !error && idleResources.length > 0 && (
         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
           <Table striped bordered hover responsive>
-            <thead
-              style={{
-                position: "sticky",
-                top: 0,
-                background: "#f8f9fa",
-                zIndex: 1,
-              }}
-            >
+            <thead style={{ position: "sticky", top: 0, background: "#f8f9fa", zIndex: 1 }}>
               <tr>
                 <th>ID</th>
                 <th>Resource Type</th>

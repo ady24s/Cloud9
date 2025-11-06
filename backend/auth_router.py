@@ -5,20 +5,18 @@ from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 from dotenv import load_dotenv
-import httpx
-import os
-import json
-import urllib.parse
+import httpx, os, json, urllib.parse
 
 from backend.database import SessionLocal
 from backend.models import User, CloudCredential
 from backend.jwt_utils import issue_access_token, verify_access_token
-from backend.crypto_utils import encrypt_text
+from backend.auth_deps import get_current_user
 
 load_dotenv()
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+# ---------------------- DB Dependency ----------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -29,7 +27,7 @@ def get_db():
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
 # ===========================================================
-#  GOOGLE & MICROSOFT LOGIN
+# Google & Microsoft Login
 # ===========================================================
 config = Config(environ={
     "GOOGLE_CLIENT_ID": os.getenv("GOOGLE_CLIENT_ID", ""),
@@ -39,6 +37,7 @@ config = Config(environ={
 })
 oauth = OAuth(config)
 
+# Google OAuth
 oauth.register(
     name="google",
     client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
@@ -47,6 +46,7 @@ oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
+# Microsoft OAuth
 login_tenant = os.getenv("MICROSOFT_TENANT_ID", "common")
 oauth.register(
     name="microsoft",
@@ -67,6 +67,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     userinfo = token.get("userinfo") or {}
     email = userinfo.get("email")
     sub = userinfo.get("sub")
+
     if not email:
         raise HTTPException(status_code=400, detail="Google login failed: no email returned")
 
@@ -91,6 +92,7 @@ async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
     claims = token.get("userinfo") or token.get("id_token_claims") or {}
     email = claims.get("email") or claims.get("preferred_username")
     sub = claims.get("sub") or claims.get("oid")
+
     if not email:
         raise HTTPException(status_code=400, detail="Microsoft login failed: no email returned")
 
@@ -104,9 +106,8 @@ async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
     access_token = issue_access_token(user.id)
     return RedirectResponse(f"{FRONTEND_BASE_URL}/auth/callback?token={urllib.parse.quote(access_token)}")
 
-
 # ===========================================================
-#  AZURE (ARM CONNECT)
+# Azure ARM Connect
 # ===========================================================
 AZURE_CLIENT_ID = os.getenv("AZURE_APP_CLIENT_ID")
 AZURE_CLIENT_SECRET = os.getenv("AZURE_APP_CLIENT_SECRET")
@@ -127,36 +128,23 @@ def _ensure_azure_env():
 
 @router.get("/azure/login")
 async def azure_login(token: str = Query(...)):
+    user_id = verify_access_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
     _ensure_azure_env()
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid token. Please log in again.")
-
-    state_data = json.dumps({"token": token})
     query_params = {
         "client_id": AZURE_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": AZURE_REDIRECT_URI,
         "response_mode": "query",
         "scope": AZURE_SCOPE,
-        "state": urllib.parse.quote(state_data),
     }
     url = f"{AZURE_AUTH_URL}?{urllib.parse.urlencode(query_params)}"
     return RedirectResponse(url)
 
 @router.get("/azure/callback")
-async def azure_callback(code: str, state: str, db: Session = Depends(get_db)):
+async def azure_callback(code: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ensure_azure_env()
-    try:
-        state_data = json.loads(urllib.parse.unquote(state))
-        token = state_data.get("token")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid state parameter")
-
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
-
     token_data = {
         "client_id": AZURE_CLIENT_ID,
         "client_secret": AZURE_CLIENT_SECRET,
@@ -166,4 +154,48 @@ async def azure_callback(code: str, state: str, db: Session = Depends(get_db)):
     }
 
     async with httpx.AsyncClient(timeout=25) as client:
-        token_resp =_
+        token_resp = await client.post(AZURE_TOKEN_URL, data=token_data)
+        if token_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Azure token exchange failed: {token_resp.text}")
+        token_json = token_resp.json()
+
+    refresh_token = token_json.get("refresh_token")
+    access_token = token_json.get("access_token")
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="No refresh token received from Azure.")
+
+    extra_payload = {
+        "refresh_token": refresh_token,
+        "access_token": access_token,
+        "token_type": token_json.get("token_type"),
+        "expires_in": token_json.get("expires_in"),
+        "scope": token_json.get("scope"),
+    }
+
+    from backend.crypto_utils import encrypt_text
+    record = db.query(CloudCredential).filter(
+        CloudCredential.user_id == current_user.id,
+        CloudCredential.provider == "azure",
+    ).first()
+
+    if record:
+        record.extra_json_enc = encrypt_text(json.dumps(extra_payload))
+    else:
+        db.add(CloudCredential(
+            provider="azure",
+            user_id=current_user.id,
+            extra_json_enc=encrypt_text(json.dumps(extra_payload)),
+        ))
+    db.commit()
+
+    return RedirectResponse(f"{FRONTEND_BASE_URL}/choose-cloud?azure=connected")
+
+# ===========================================================
+# Debug Token Endpoint
+# ===========================================================
+@router.get("/debug-token")
+async def debug_token(token: str):
+    user_id = verify_access_token(token)
+    if not user_id:
+        return {"valid": False, "message": "Invalid or expired token"}
+    return {"valid": True, "user_id": user_id}

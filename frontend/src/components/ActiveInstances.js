@@ -1,8 +1,6 @@
-// src/components/ActiveInstances.js
 import React, { useEffect, useState } from "react";
 import axios from "../api";
 import { Table, Spinner, Alert } from "react-bootstrap";
-
 
 const ActiveInstances = ({ provider }) => {
   const [instances, setInstances] = useState([]);
@@ -26,12 +24,12 @@ const ActiveInstances = ({ provider }) => {
     };
 
     if (provider) fetchInstances();
-  }, [provider]);
+  }, [provider]); // ✅ Added provider dependency
 
   if (loading) return <Spinner animation="border" />;
   if (error) return <Alert variant="danger">{error}</Alert>;
   if (instances.length === 0)
-    return <Alert variant="info">No active instances found.</Alert>;
+    return <Alert variant="info">No active instances found for {provider}.</Alert>;
 
   return (
     <Table striped bordered hover>

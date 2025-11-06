@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
-const SpendOverview = () => {
+const SpendOverview = ({ provider }) => {
   const data = [
     { month: "Jan", spend: 2000 },
     { month: "Feb", spend: 2200 },
@@ -15,7 +15,7 @@ const SpendOverview = () => {
 
   return (
     <div>
-      <h5 style={styles.title}>💰 Cloud Spend Overview</h5>
+      <h5 style={styles.title}>💰 {provider.toUpperCase()} Spend Overview</h5>
       <div style={{ height: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>

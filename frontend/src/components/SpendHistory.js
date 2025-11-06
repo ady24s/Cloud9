@@ -5,14 +5,19 @@ import {
 import { Alert } from "react-bootstrap";
 import api from "../api";
 
-const SpendHistory = () => {
+const SpendHistory = ({ provider }) => {
   const [data, setData] = useState([]);
   const [anomalyDetected, setAnomalyDetected] = useState(false);
 
   useEffect(() => {
     const fetchSpendData = async () => {
       try {
-        const response = await api.get("/users/me/spend-series?days=180");
+        const response = await api.get("/users/me/spend-series", {
+          params: { 
+            days: 180,
+            provider // ✅ Added provider param
+          }
+        });
         const points = response.data?.points || [];
         const chartData = points.map((p) => ({ month: p.date, spend: p.spend }));
 
@@ -30,14 +35,14 @@ const SpendHistory = () => {
     };
 
     fetchSpendData();
-  }, []);
+  }, [provider]); // ✅ Added provider dependency
 
   return (
     <div>
-      <h5 style={styles.title}>📈 Cloud Spend History</h5>
+      <h5 style={styles.title}>📈 {provider.toUpperCase()} Spend History</h5>
 
       {anomalyDetected && (
-        <Alert variant="danger">🚨 Anomaly Detected! Cost spike detected!</Alert>
+        <Alert variant="danger">🚨 Anomaly Detected! Cost spike detected in {provider}!</Alert>
       )}
 
       <div style={{ height: 300 }}>

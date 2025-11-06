@@ -8,7 +8,6 @@ import ActiveInstances from "./ActiveInstances";
 import IdleResources from "./IdleResources";
 import SecurityOverview from "./SecurityOverview";
 import SecurityTrend from "./SecurityTrend";
-import ChatbotUI from "./ChatbotUI";
 
 import awsLogo from "../assets/aws.png";
 import googleLogo from "../assets/google-cloud.png";
@@ -20,7 +19,7 @@ const PROVIDERS = {
   azure: { name: "Microsoft Azure", logo: azureLogo },
 };
 
-const Dashboard = ({ provider = "aws" }) => {
+const Dashboard = ({ provider = "aws", setProvider }) => {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -51,18 +50,58 @@ const Dashboard = ({ provider = "aws" }) => {
     };
 
     fetchMetrics();
-  }, []);
+  }, [provider]); // Re-fetch when provider changes
 
   return (
     <div style={styles.pageWrapper}>
       <div style={styles.header}>
         {providerLogo && <img src={providerLogo} alt="Logo" style={styles.logo} />}
         <h1 style={styles.heading}>Cloud9 Dashboard — {providerName}</h1>
+        
+        {/* Navigation Buttons */}
+        <div style={styles.navButtons}>
+          <Button
+            variant="primary"
+            style={styles.navButton}
+            onClick={() => navigate("/dashboard")}
+          >
+            🏠 Dashboard
+          </Button>
+          <Button
+            variant="success"
+            style={styles.navButton}
+            onClick={() => navigate("/budget")}
+          >
+            💰 Budget
+          </Button>
+          <Button
+            variant="warning"
+            style={styles.navButton}
+            onClick={() => navigate("/security")}
+          >
+            🛡️ Security
+          </Button>
+        </div>
+
+        {/* Provider Switcher */}
+        <div style={styles.providerSwitcher}>
+          <select 
+            value={provider} 
+            onChange={(e) => setProvider(e.target.value)}
+            style={styles.providerSelect}
+          >
+            <option value="aws">AWS</option>
+            <option value="azure">Azure</option>
+            <option value="gcp">GCP</option>
+          </select>
+        </div>
+
         <Button
           variant="danger"
           style={styles.logoutBtn}
           onClick={() => {
             localStorage.removeItem("cloud9_token");
+            localStorage.removeItem("current_provider");
             navigate("/");
           }}
         >
@@ -82,7 +121,7 @@ const Dashboard = ({ provider = "aws" }) => {
             <Card style={styles.metricCard}>
               <Card.Body>
                 <h5>Total Spend</h5>
-                <p>{metrics.total_spend}</p>
+                <p>${metrics.total_spend}</p>
               </Card.Body>
             </Card>
           </Col>
@@ -98,7 +137,7 @@ const Dashboard = ({ provider = "aws" }) => {
             <Card style={styles.metricCard}>
               <Card.Body>
                 <h5>Predicted Savings</h5>
-                <p>{metrics.predicted_savings}</p>
+                <p>${metrics.predicted_savings}</p>
               </Card.Body>
             </Card>
           </Col>
@@ -108,23 +147,21 @@ const Dashboard = ({ provider = "aws" }) => {
       )}
 
       <Row className="mt-4">
-        <Col md={6}><SpendOverview /></Col>
-        <Col md={6}><SpendHistory /></Col>
+        <Col md={6}><SpendOverview provider={provider} /></Col>
+        <Col md={6}><SpendHistory provider={provider} /></Col>
       </Row>
 
       <Row className="mt-4">
         <Col md={6}><ActiveInstances provider={provider} /></Col>
-        <Col md={6}><IdleResources /></Col>
+        <Col md={6}><IdleResources provider={provider} /></Col>
       </Row>
 
       <Row className="mt-4">
-        <Col md={6}><SecurityOverview /></Col>
-        <Col md={6}><SecurityTrend /></Col>
+        <Col md={6}><SecurityOverview provider={provider} /></Col>
+        <Col md={6}><SecurityTrend provider={provider} /></Col>
       </Row>
 
-      <Row className="mt-4">
-        <Col md={12}><ChatbotUI /></Col>
-      </Row>
+      {/* ChatbotUI row has been removed */}
     </div>
   );
 };
@@ -137,12 +174,59 @@ const styles = {
     color: "white",
     fontFamily: "Inter, sans-serif",
   },
-  header: { textAlign: "center", marginBottom: "20px", position: "relative" },
-  logo: { width: 80, marginBottom: 10 },
-  heading: { fontSize: "28px", fontWeight: "700" },
-  logoutBtn: { position: "absolute", top: 0, right: 20, fontSize: "14px", padding: "5px 10px" },
-  center: { display: "flex", justifyContent: "center", marginTop: "20px" },
-  metricRow: { marginTop: "20px" },
+  header: { 
+    textAlign: "center", 
+    marginBottom: "20px", 
+    position: "relative" 
+  },
+  logo: { 
+    width: 80, 
+    marginBottom: 10 
+  },
+  heading: { 
+    fontSize: "28px", 
+    fontWeight: "700",
+    marginBottom: "15px"
+  },
+  navButtons: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "20px",
+    justifyContent: "center"
+  },
+  navButton: {
+    padding: "8px 16px",
+    fontSize: "14px",
+    fontWeight: "600"
+  },
+  providerSwitcher: {
+    position: "absolute",
+    top: 10,
+    right: 100,
+  },
+  providerSelect: {
+    padding: "5px 10px",
+    borderRadius: "5px",
+    border: "1px solid #ccc",
+    background: "white",
+    color: "black",
+    fontSize: "14px",
+  },
+  logoutBtn: { 
+    position: "absolute", 
+    top: 0, 
+    right: 20, 
+    fontSize: "14px", 
+    padding: "5px 10px" 
+  },
+  center: { 
+    display: "flex", 
+    justifyContent: "center", 
+    marginTop: "20px" 
+  },
+  metricRow: { 
+    marginTop: "20px" 
+  },
   metricCard: {
     textAlign: "center",
     background: "rgba(255,255,255,0.05)",

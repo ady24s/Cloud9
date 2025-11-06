@@ -1,3 +1,4 @@
+# backend/database.py - Fixed version
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -31,7 +32,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Test connection function
+# Test connection function - FIXED
 def test_connection():
     try:
         with engine.connect() as connection:

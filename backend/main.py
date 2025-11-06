@@ -17,6 +17,9 @@ from backend.auth_router import router as auth_router
 from backend.credentials_router import router as cred_router
 from backend.cloud_ingestors import ingest_aws, ingest_gcp, ingest_azure
 
+from datetime import timedelta
+from sqlalchemy import text
+
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "super-secret-session-key")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 

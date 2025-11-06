@@ -1,21 +1,30 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+// frontend/src/components/AuthSuccess.jsx
+import React, { useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
-const AuthSuccess = () => {
+export default function AuthSuccess() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    // Parse token from URL query param
+    const params = new URLSearchParams(location.search);
     const token = params.get("token");
+
     if (token) {
-      localStorage.setItem("access_token", token);
-      navigate("/choose-cloud");
+      // ✅ Store token in a consistent key
+      localStorage.setItem("cloud9_token", token);
+
+      // Optional: you can also store login timestamp
+      localStorage.setItem("login_time", Date.now().toString());
+
+      // Redirect to choose-cloud page
+      navigate("/choose-cloud", { replace: true });
     } else {
-      navigate("/");
+      alert("Login failed. No token received.");
+      navigate("/", { replace: true });
     }
-  }, [navigate]);
+  }, [location, navigate]);
 
-  return <p>Signing you in...</p>;
-};
-
-export default AuthSuccess;
+  return <p>Processing login, please wait...</p>;
+}
